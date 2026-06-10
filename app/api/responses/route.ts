@@ -28,12 +28,31 @@ export async function POST(request: NextRequest) {
 
     const cs = surveyResponse.chapterScores || {};
     await sheets.spreadsheets.values.append({
-      spreadsheetId: companySheetId, range: "リテラシースコア!A:G", valueInputOption: "RAW",
+      spreadsheetId: companySheetId, range: "AIリテラシー!A:G", valueInputOption: "RAW",
       requestBody: { values: [[
         surveyResponse.submittedAt, surveyResponse.basic["Q0-1"] || "",
         surveyResponse.testScore,
         cs["Delegation"]?.score || 0, cs["Description"]?.score || 0,
         cs["Discernment"]?.score || 0, cs["Diligence"]?.score || 0,
+      ]] },
+    });
+
+    const wm = surveyResponse.workflowMetrics || {};
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: companySheetId, range: "業務実態スコア!A:L", valueInputOption: "RAW",
+      requestBody: { values: [[
+        surveyResponse.submittedAt,
+        surveyResponse.basic["Q0-1"] || "",
+        surveyResponse.basic["Q0-2"] || "",
+        wm.repetition_score ?? 0,
+        wm.tool_fragmentation ?? 0,
+        wm.manual_transfer_freq ?? 0,
+        wm.communication_volume ?? 0,
+        wm.recurring_mail_flag ?? 0,
+        wm.knowledge_accessibility ?? 0,
+        wm.info_sharing_gap ?? 0,
+        wm.peak_overload ?? 0,
+        wm.ai_anxiety_level ?? 0,
       ]] },
     });
 

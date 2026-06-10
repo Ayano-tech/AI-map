@@ -7,6 +7,12 @@ export interface Company {
   createdAt: string;
   sheetId: string | null;
   sheetUrl: string | null;
+  foundingYearRange: string;
+  annualRevenueRange: string;
+  itInvestmentLevel: string;
+  currentItTools: string[];
+  hasDxPerson: string;
+  aiInitiativeStatus: string;
 }
 
 export interface SurveyQuestion {
@@ -40,6 +46,18 @@ export interface ChapterScore {
   rate: number;
 }
 
+export interface WorkflowMetrics {
+  repetition_score: number;
+  tool_fragmentation: number;
+  manual_transfer_freq: number;
+  communication_volume: number;
+  recurring_mail_flag: number;
+  knowledge_accessibility: number;
+  info_sharing_gap: number;
+  peak_overload: number;
+  ai_anxiety_level: number;
+}
+
 export interface SurveyResponse {
   companyId: string;
   submittedAt: string;
@@ -48,6 +66,7 @@ export interface SurveyResponse {
   testAnswers: Record<number, number>;
   testScore: number;
   chapterScores: Record<string, ChapterScore>;
+  workflowMetrics: WorkflowMetrics;
 }
 
 export interface DiagnosticReport {

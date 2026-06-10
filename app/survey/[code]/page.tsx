@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { Company, SurveyResponse } from "@/lib/types";
 import { SURVEY_SECTIONS, LITERACY_TEST } from "@/lib/survey-data";
-import { calculateScores } from "@/lib/scoring";
+import { calculateScores, calcWorkflowMetrics } from "@/lib/scoring";
 
 type Phase = "loading" | "intro" | "survey" | "test" | "complete" | "error";
 
@@ -102,6 +102,7 @@ export default function SurveyPage() {
     } else {
       // Complete
       const { total, chapterScores } = calculateScores(newAnswers);
+      const workflowMetrics = calcWorkflowMetrics(surveyAnswers);
       const basic: Record<string, string> = {};
       Object.entries(surveyAnswers).forEach(([k, v]) => {
         if (SURVEY_SECTIONS[0].questions.some(q => q.id === k)) {
@@ -116,6 +117,7 @@ export default function SurveyPage() {
         testAnswers: newAnswers,
         testScore: total,
         chapterScores,
+        workflowMetrics,
       };
       setFinalResponse(resp);
       setPhase("complete");

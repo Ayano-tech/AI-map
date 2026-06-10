@@ -15,7 +15,11 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
-  const [addForm, setAddForm] = useState({ name: "", industry: "", employeeCount: "" });
+  const [addForm, setAddForm] = useState({
+    name: "", industry: "", employeeCount: "",
+    foundingYearRange: "", annualRevenueRange: "", itInvestmentLevel: "",
+    currentItTools: [] as string[], hasDxPerson: "", aiInitiativeStatus: "",
+  });
   const [adding, setAdding] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [responses, setResponses] = useState<ResponseData[]>([]);
@@ -51,7 +55,7 @@ export default function AdminDashboard() {
         body: JSON.stringify(addForm),
       });
       if (res.ok) {
-        setAddForm({ name: "", industry: "", employeeCount: "" });
+        setAddForm({ name: "", industry: "", employeeCount: "", foundingYearRange: "", annualRevenueRange: "", itInvestmentLevel: "", currentItTools: [], hasDxPerson: "", aiInitiativeStatus: "" });
         fetchCompanies();
       }
     } finally {
@@ -117,11 +121,51 @@ export default function AdminDashboard() {
         {/* Add Company */}
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <h2 className="text-shin-charcoal font-semibold mb-4">企業を追加</h2>
-          <form onSubmit={handleAddCompany} className="flex flex-wrap gap-3">
-            <input required value={addForm.name} onChange={e => setAddForm(p => ({ ...p, name: e.target.value }))} placeholder="企業名 *" className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[160px] focus:outline-none focus:border-shin-blue" />
-            <input value={addForm.industry} onChange={e => setAddForm(p => ({ ...p, industry: e.target.value }))} placeholder="業種" className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[120px] focus:outline-none focus:border-shin-blue" />
-            <input value={addForm.employeeCount} onChange={e => setAddForm(p => ({ ...p, employeeCount: e.target.value }))} placeholder="従業員数" className="border border-shin-accent rounded-lg px-4 py-2 w-32 focus:outline-none focus:border-shin-blue" />
-            <button type="submit" disabled={adding} className="bg-shin-blue text-white rounded-lg px-6 py-2 font-semibold disabled:opacity-50 hover:bg-shin-blue-dark transition-colors">{adding ? "作成中..." : "追加"}</button>
+          <form onSubmit={handleAddCompany} className="space-y-4">
+            <div className="flex flex-wrap gap-3">
+              <input required value={addForm.name} onChange={e => setAddForm(p => ({ ...p, name: e.target.value }))} placeholder="企業名 *" className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[160px] focus:outline-none focus:border-shin-blue" />
+              <input value={addForm.industry} onChange={e => setAddForm(p => ({ ...p, industry: e.target.value }))} placeholder="業種" className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[120px] focus:outline-none focus:border-shin-blue" />
+              <input value={addForm.employeeCount} onChange={e => setAddForm(p => ({ ...p, employeeCount: e.target.value }))} placeholder="従業員数" className="border border-shin-accent rounded-lg px-4 py-2 w-32 focus:outline-none focus:border-shin-blue" />
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <select value={addForm.foundingYearRange} onChange={e => setAddForm(p => ({ ...p, foundingYearRange: e.target.value }))} className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[140px] focus:outline-none focus:border-shin-blue text-shin-charcoal">
+                <option value="">設立年代</option>
+                {["〜1990年代","2000年代","2010年代","2020年以降"].map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <select value={addForm.annualRevenueRange} onChange={e => setAddForm(p => ({ ...p, annualRevenueRange: e.target.value }))} className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[140px] focus:outline-none focus:border-shin-blue text-shin-charcoal">
+                <option value="">年商規模</option>
+                {["1億円未満","1〜5億円","5〜10億円","10億円以上","非公開"].map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <select value={addForm.itInvestmentLevel} onChange={e => setAddForm(p => ({ ...p, itInvestmentLevel: e.target.value }))} className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[180px] focus:outline-none focus:border-shin-blue text-shin-charcoal">
+                <option value="">IT投資姿勢</option>
+                {["積極的に投資している","必要に応じて導入している","コストを抑えたい","ほぼ投資していない"].map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <select value={addForm.hasDxPerson} onChange={e => setAddForm(p => ({ ...p, hasDxPerson: e.target.value }))} className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[140px] focus:outline-none focus:border-shin-blue text-shin-charcoal">
+                <option value="">DX担当者</option>
+                {["専任担当者がいる","兼任でいる","いない"].map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <select value={addForm.aiInitiativeStatus} onChange={e => setAddForm(p => ({ ...p, aiInitiativeStatus: e.target.value }))} className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[200px] focus:outline-none focus:border-shin-blue text-shin-charcoal">
+                <option value="">AI導入状況</option>
+                {["すでに組織的に活用中","試験的に導入している","個人レベルで使っている人がいる","まだ誰も使っていない"].map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <p className="text-shin-mid text-xs mb-2">現在使っているITツール（複数選択可）</p>
+              <div className="flex flex-wrap gap-2">
+                {["会計・財務ソフト","CRM・SFA","チャット・コミュニケーションツール","プロジェクト管理ツール","電子署名・文書管理","特にデジタル化していない"].map(tool => {
+                  const checked = addForm.currentItTools.includes(tool);
+                  return (
+                    <button key={tool} type="button" onClick={() => setAddForm(p => ({ ...p, currentItTools: checked ? p.currentItTools.filter(t => t !== tool) : [...p.currentItTools, tool] }))}
+                      className={`px-3 py-1 rounded-full text-xs border-2 transition-colors ${checked ? "bg-shin-blue text-white border-shin-blue" : "bg-white text-shin-charcoal border-shin-accent hover:border-shin-blue"}`}>
+                      {tool}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <button type="submit" disabled={adding} className="bg-shin-blue text-white rounded-lg px-6 py-2 font-semibold disabled:opacity-50 hover:bg-shin-blue-dark transition-colors">{adding ? "作成中..." : "企業を追加"}</button>
+            </div>
           </form>
         </div>
 
