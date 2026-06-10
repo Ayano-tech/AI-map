@@ -12,7 +12,7 @@
  *  6. デプロイ後のURLを Next.js の GAS_WEB_APP_URL 環境変数に設定
  */
 
-const MASTER_SPREADSHEET_ID = "ここにマスタースプレッドシートのIDを入力";
+const MASTER_SPREADSHEET_ID = "1FZRtMgai9n04bCqvR8_WKxIR5_D4IhBdmYik7-r_WmU";
 
 // ----------------------------------------
 // GET: getCompanies / getResponses
