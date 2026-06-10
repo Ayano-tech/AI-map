@@ -32,7 +32,7 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col items-center justify-center px-4" style={{ background: "linear-gradient(160deg, #1A2A3E 0%, #2A4A6E 50%, #6AA3D8 100%)" }}>
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <p className="text-[#BCC8DE] text-xs font-semibold mb-3" style={{ letterSpacing: "6px" }}>POWERED BY 株式会社SHIN</p>
+          <p className="text-[#BCC8DE] text-xs font-semibold mb-3" style={{ letterSpacing: "6px" }}>POWERED BY SHIN</p>
           <h1 className="text-white text-3xl font-bold mb-2">生成AI活用診断</h1>
           <p className="text-[#BCC8DE] text-sm">貴社のAI活用の現在地を可視化します</p>
         </div>

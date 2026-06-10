@@ -111,7 +111,7 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-[#F5F8FC]">
       <header className="bg-shin-dark text-white px-6 py-4 flex justify-between items-center">
         <div>
-          <p className="text-[#BCC8DE] text-xs" style={{ letterSpacing: "4px" }}>株式会社SHIN</p>
+          <p className="text-[#BCC8DE] text-xs" style={{ letterSpacing: "4px" }}>SHIN</p>
           <h1 className="text-lg font-bold">生成AI活用診断 管理画面</h1>
         </div>
         <button onClick={() => { sessionStorage.removeItem("admin_auth"); router.push("/admin"); }} className="text-[#BCC8DE] text-sm hover:text-white">ログアウト</button>
