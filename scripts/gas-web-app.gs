@@ -10,6 +10,9 @@
  *     実行ユーザー：自分（スクリプトオーナー）
  *     アクセス：全員
  *  6. デプロイ後のURLを Next.js の GAS_WEB_APP_URL 環境変数に設定
+ *
+ * 【isDemo列の追加（既存マスターシートのみ）】
+ *  マスタースプレッドシートを開き、setup-master-sheet.gs の addIsDemoColumn() を実行する
  */
 
 const MASTER_SPREADSHEET_ID = "1FZRtMgai9n04bCqvR8_WKxIR5_D4IhBdmYik7-r_WmU";
@@ -77,6 +80,7 @@ function handleGetCompanies() {
       createdAt: row[5],
       sheetId: row[6] || null,
       sheetUrl: row[7] || null,
+      isDemo: row[8] === true || row[8] === "TRUE",
     }));
 
   return jsonRes({ companies });
@@ -91,6 +95,7 @@ function handleCreateCompany(data) {
     foundingYearRange = "", annualRevenueRange = "",
     itInvestmentLevel = "", currentItTools = [],
     hasDxPerson = "", aiInitiativeStatus = "",
+    isDemo = false,
   } = data;
 
   const id = Date.now().toString();
@@ -142,7 +147,7 @@ function handleCreateCompany(data) {
   // マスターシートに企業登録
   const masterSS = SpreadsheetApp.openById(MASTER_SPREADSHEET_ID);
   masterSS.getSheetByName("companies").appendRow([
-    id, name, industry, employeeCount, code, now, sheetId, sheetUrl
+    id, name, industry, employeeCount, code, now, sheetId, sheetUrl, !!isDemo
   ]);
 
   return jsonRes({
@@ -150,7 +155,7 @@ function handleCreateCompany(data) {
       id, name, industry, employeeCount, code,
       sheetId, sheetUrl, createdAt: now,
       foundingYearRange, annualRevenueRange, itInvestmentLevel,
-      currentItTools, hasDxPerson, aiInitiativeStatus,
+      currentItTools, hasDxPerson, aiInitiativeStatus, isDemo: !!isDemo,
     }
   });
 }

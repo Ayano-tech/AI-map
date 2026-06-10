@@ -13,6 +13,7 @@ export interface Company {
   currentItTools: string[];
   hasDxPerson: string;
   aiInitiativeStatus: string;
+  isDemo: boolean;
 }
 
 export interface SurveyQuestion {

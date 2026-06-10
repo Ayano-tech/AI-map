@@ -19,7 +19,9 @@ export default function AdminDashboard() {
     name: "", industry: "", employeeCount: "",
     foundingYearRange: "", annualRevenueRange: "", itInvestmentLevel: "",
     currentItTools: [] as string[], hasDxPerson: "", aiInitiativeStatus: "",
+    isDemo: false,
   });
+  const [showDemo, setShowDemo] = useState(false);
   const [adding, setAdding] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [responses, setResponses] = useState<ResponseData[]>([]);
@@ -55,7 +57,7 @@ export default function AdminDashboard() {
         body: JSON.stringify(addForm),
       });
       if (res.ok) {
-        setAddForm({ name: "", industry: "", employeeCount: "", foundingYearRange: "", annualRevenueRange: "", itInvestmentLevel: "", currentItTools: [], hasDxPerson: "", aiInitiativeStatus: "" });
+        setAddForm({ name: "", industry: "", employeeCount: "", foundingYearRange: "", annualRevenueRange: "", itInvestmentLevel: "", currentItTools: [], hasDxPerson: "", aiInitiativeStatus: "", isDemo: false });
         fetchCompanies();
       }
     } finally {
@@ -163,7 +165,11 @@ export default function AdminDashboard() {
                 })}
               </div>
             </div>
-            <div className="flex justify-end">
+            <div className="flex justify-between items-center">
+              <label className="flex items-center gap-2 text-sm text-shin-mid cursor-pointer">
+                <input type="checkbox" checked={addForm.isDemo} onChange={e => setAddForm(p => ({ ...p, isDemo: e.target.checked }))} className="accent-shin-blue" />
+                デモ用データとして登録（本番データと区別されます）
+              </label>
               <button type="submit" disabled={adding} className="bg-shin-blue text-white rounded-lg px-6 py-2 font-semibold disabled:opacity-50 hover:bg-shin-blue-dark transition-colors">{adding ? "作成中..." : "企業を追加"}</button>
             </div>
           </form>
@@ -171,19 +177,26 @@ export default function AdminDashboard() {
 
         {/* Company List */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-shin-accent">
-            <h2 className="text-shin-charcoal font-semibold">登録企業一覧（{companies.length}社）</h2>
+          <div className="px-6 py-4 border-b border-shin-accent flex justify-between items-center">
+            <h2 className="text-shin-charcoal font-semibold">登録企業一覧（{(showDemo ? companies : companies.filter(c => !c.isDemo)).length}社）</h2>
+            <label className="flex items-center gap-2 text-sm text-shin-mid cursor-pointer">
+              <input type="checkbox" checked={showDemo} onChange={e => setShowDemo(e.target.checked)} className="accent-shin-blue" />
+              デモデータを表示
+            </label>
           </div>
           {loading ? (
             <div className="p-8 text-center text-shin-mid">読み込み中...</div>
-          ) : companies.length === 0 ? (
+          ) : (showDemo ? companies : companies.filter(c => !c.isDemo)).length === 0 ? (
             <div className="p-8 text-center text-shin-mid">企業が登録されていません</div>
           ) : (
             <div className="divide-y divide-shin-accent">
-              {companies.map(company => (
+              {(showDemo ? companies : companies.filter(c => !c.isDemo)).map(company => (
                 <div key={company.id} className="px-6 py-4 flex items-center justify-between hover:bg-shin-blue-pale transition-colors">
                   <div>
-                    <p className="font-semibold text-shin-charcoal">{company.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-shin-charcoal">{company.name}</p>
+                      {company.isDemo && <span className="bg-yellow-100 text-yellow-700 text-xs font-bold px-2 py-0.5 rounded-full">DEMO</span>}
+                    </div>
                     <p className="text-shin-mid text-sm">{company.industry} / {company.employeeCount}名</p>
                     <p className="text-shin-light text-xs">{new Date(company.createdAt).toLocaleDateString("ja-JP")} 登録</p>
                   </div>

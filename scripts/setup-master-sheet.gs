@@ -8,6 +8,32 @@
  *  4. 権限を承認する
  */
 
+/**
+ * 既存のマスタースプレッドシートに isDemo 列を追加する移行用関数
+ * 使い方: 既存のマスタースプレッドシートを開き、この関数を実行する
+ */
+function addIsDemoColumn() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("companies");
+  if (!sheet) return;
+
+  const lastRow = sheet.getLastRow();
+  const header = sheet.getRange(1, 9).getValue();
+  if (header !== "isDemo") {
+    sheet.getRange(1, 9).setValue("isDemo");
+    sheet.getRange(1, 9).setBackground("#1A2A3E").setFontColor("#FFFFFF").setFontWeight("bold").setHorizontalAlignment("center");
+    sheet.setColumnWidth(9, 90);
+  }
+
+  // 既存行の isDemo が空欄であれば false を設定
+  if (lastRow > 1) {
+    const range = sheet.getRange(2, 9, lastRow - 1, 1);
+    const values = range.getValues();
+    const filled = values.map(([v]) => [v === "" || v === null ? false : v]);
+    range.setValues(filled);
+  }
+}
+
 function setupMasterSpreadsheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   ss.setName("AI活用診断_マスター管理");
@@ -27,12 +53,12 @@ function setupMasterSpreadsheet() {
 
   // ヘッダー行
   const companyHeaders = [
-    ["id", "name", "industry", "employeeCount", "code", "createdAt", "sheetId", "sheetUrl"]
+    ["id", "name", "industry", "employeeCount", "code", "createdAt", "sheetId", "sheetUrl", "isDemo"]
   ];
-  companiesSheet.getRange("A1:H1").setValues(companyHeaders);
+  companiesSheet.getRange("A1:I1").setValues(companyHeaders);
 
   // ヘッダーのスタイル
-  const companyHeaderRange = companiesSheet.getRange("A1:H1");
+  const companyHeaderRange = companiesSheet.getRange("A1:I1");
   companyHeaderRange.setBackground("#1A2A3E");
   companyHeaderRange.setFontColor("#FFFFFF");
   companyHeaderRange.setFontWeight("bold");
@@ -47,6 +73,7 @@ function setupMasterSpreadsheet() {
   companiesSheet.setColumnWidth(6, 180);  // createdAt
   companiesSheet.setColumnWidth(7, 200);  // sheetId
   companiesSheet.setColumnWidth(8, 300);  // sheetUrl
+  companiesSheet.setColumnWidth(9, 90);   // isDemo
 
   // 列固定（ヘッダー行を凍結）
   companiesSheet.setFrozenRows(1);
