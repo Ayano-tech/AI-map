@@ -1,0 +1,359 @@
+"use client";
+import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
+import { Company, SurveyResponse } from "@/lib/types";
+import { SURVEY_SECTIONS, LITERACY_TEST } from "@/lib/survey-data";
+import { calculateScores } from "@/lib/scoring";
+
+type Phase = "loading" | "intro" | "survey" | "test" | "complete" | "error";
+
+export default function SurveyPage() {
+  const params = useParams();
+  const code = params.code as string;
+
+  const [phase, setPhase] = useState<Phase>("loading");
+  const [company, setCompany] = useState<Company | null>(null);
+
+  // Survey state
+  const [sectionIndex, setSectionIndex] = useState(0);
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const [surveyAnswers, setSurveyAnswers] = useState<Record<string, string | string[]>>({});
+
+  // Test state
+  const [testIndex, setTestIndex] = useState(0);
+  const [testAnswers, setTestAnswers] = useState<Record<number, number>>({});
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+
+  // Completion state
+  const [finalResponse, setFinalResponse] = useState<SurveyResponse | null>(null);
+
+  useEffect(() => {
+    fetch("/api/companies")
+      .then(r => r.json())
+      .then(data => {
+        const found = data.companies?.find((c: Company) => c.code === code);
+        if (found) { setCompany(found); setPhase("intro"); }
+        else setPhase("error");
+      })
+      .catch(() => setPhase("error"));
+  }, [code]);
+
+  // Get visible questions for current section
+  function getVisibleQuestions(sIdx: number) {
+    const section = SURVEY_SECTIONS[sIdx];
+    return section.questions.filter(q => {
+      if (!q.condition) return true;
+      const dep = surveyAnswers[q.condition.dependsOn];
+      if (Array.isArray(dep)) return dep.some(v => q.condition!.values.includes(v));
+      return q.condition.values.includes(dep as string);
+    });
+  }
+
+  const currentSection = SURVEY_SECTIONS[sectionIndex];
+  const visibleQuestions = phase === "survey" ? getVisibleQuestions(sectionIndex) : [];
+  const currentQuestion = visibleQuestions[questionIndex];
+
+  // Total progress calculation
+  const totalSurveyQuestions = SURVEY_SECTIONS.reduce((acc, _, si) => acc + getVisibleQuestions(si).length, 0);
+  const answeredSurvey = SURVEY_SECTIONS.slice(0, sectionIndex).reduce((acc, _, si) => acc + getVisibleQuestions(si).length, 0) + questionIndex;
+  const totalQuestions = totalSurveyQuestions + LITERACY_TEST.length;
+  const answeredQuestions = phase === "test" ? totalSurveyQuestions + testIndex : answeredSurvey;
+  const progress = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0;
+
+  function handleSurveyAnswer(value: string | string[]) {
+    if (!currentQuestion) return;
+    setSurveyAnswers(prev => ({ ...prev, [currentQuestion.id]: value }));
+  }
+
+  function handleNext() {
+    const vq = getVisibleQuestions(sectionIndex);
+    if (questionIndex < vq.length - 1) {
+      setQuestionIndex(qi => qi + 1);
+    } else if (sectionIndex < SURVEY_SECTIONS.length - 1) {
+      setSectionIndex(si => si + 1);
+      setQuestionIndex(0);
+    } else {
+      setPhase("test");
+    }
+  }
+
+  function handleBack() {
+    if (questionIndex > 0) {
+      setQuestionIndex(qi => qi - 1);
+    } else if (sectionIndex > 0) {
+      const prevSectionIdx = sectionIndex - 1;
+      const prevVisible = getVisibleQuestions(prevSectionIdx);
+      setSectionIndex(prevSectionIdx);
+      setQuestionIndex(Math.max(0, prevVisible.length - 1));
+    }
+  }
+
+  function handleTestAnswer(optionIndex: number) {
+    setSelectedOption(optionIndex);
+  }
+
+  function handleTestNext() {
+    if (selectedOption === null) return;
+    const newAnswers = { ...testAnswers, [testIndex]: selectedOption };
+    setTestAnswers(newAnswers);
+    setSelectedOption(null);
+    if (testIndex < LITERACY_TEST.length - 1) {
+      setTestIndex(ti => ti + 1);
+    } else {
+      // Complete
+      const { total, chapterScores } = calculateScores(newAnswers);
+      const basic: Record<string, string> = {};
+      Object.entries(surveyAnswers).forEach(([k, v]) => {
+        if (SURVEY_SECTIONS[0].questions.some(q => q.id === k)) {
+          basic[k] = Array.isArray(v) ? v.join(", ") : v;
+        }
+      });
+      const resp: SurveyResponse = {
+        companyId: company!.id,
+        submittedAt: new Date().toISOString(),
+        basic,
+        surveyAnswers,
+        testAnswers: newAnswers,
+        testScore: total,
+        chapterScores,
+      };
+      setFinalResponse(resp);
+      setPhase("complete");
+
+      // Save in background
+      if (company?.sheetId) {
+        fetch("/api/responses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ companySheetId: company.sheetId, response: resp }),
+        }).catch(console.error);
+      }
+    }
+  }
+
+  function handleTestBack() {
+    if (testIndex > 0) {
+      setTestIndex(ti => ti - 1);
+      setSelectedOption(testAnswers[testIndex - 1] ?? null);
+    } else {
+      setPhase("survey");
+      setSectionIndex(SURVEY_SECTIONS.length - 1);
+      const lastVisible = getVisibleQuestions(SURVEY_SECTIONS.length - 1);
+      setQuestionIndex(lastVisible.length - 1);
+    }
+  }
+
+  if (phase === "loading") return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(160deg, #1A2A3E 0%, #2A4A6E 50%, #6AA3D8 100%)" }}>
+      <div className="text-white text-center"><p className="text-xl">読み込み中...</p></div>
+    </div>
+  );
+
+  if (phase === "error") return (
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "linear-gradient(160deg, #1A2A3E 0%, #2A4A6E 50%, #6AA3D8 100%)" }}>
+      <div className="bg-white rounded-2xl p-8 text-center max-w-sm">
+        <p className="text-shin-charcoal font-semibold mb-2">コードが見つかりません</p>
+        <p className="text-shin-mid text-sm mb-6">アクセスコードをご確認ください</p>
+        <a href="/" className="bg-shin-blue text-white rounded-lg px-6 py-2.5 font-semibold inline-block">トップへ戻る</a>
+      </div>
+    </div>
+  );
+
+  if (phase === "intro") return (
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "linear-gradient(160deg, #1A2A3E 0%, #2A4A6E 50%, #6AA3D8 100%)" }}>
+      <div className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl">
+        <p className="text-shin-mid text-sm mb-1">参加企業</p>
+        <h2 className="text-shin-charcoal text-2xl font-bold mb-6">{company?.name}</h2>
+        <div className="space-y-3 text-sm text-shin-mid mb-8">
+          <p>• 所要時間：約15〜20分</p>
+          <p>• 回答はすべて匿名で処理されます</p>
+          <p>• 業務アンケート（8セクション）＋AIリテラシーテスト（20問）で構成されています</p>
+          <p>• 途中で中断した場合、データは保存されません</p>
+        </div>
+        <button onClick={() => setPhase("survey")} className="w-full bg-shin-blue text-white rounded-lg px-6 py-3 font-semibold shadow-md hover:bg-shin-blue-dark transition-colors">
+          診断を開始する →
+        </button>
+      </div>
+    </div>
+  );
+
+  if (phase === "complete" && finalResponse) {
+    const totalScore = finalResponse.testScore;
+    const totalMax = LITERACY_TEST.length;
+    const pct = Math.round((totalScore / totalMax) * 100);
+    const level = pct >= 80 ? 4 : pct >= 60 ? 3 : pct >= 40 ? 2 : 1;
+    const levelColors: Record<number, string> = { 1: "#D94F4F", 2: "#E8A838", 3: "#6AA3D8", 4: "#34A77B" };
+    const levelLabels: Record<number, string> = { 1: "入門レベル", 2: "基礎レベル", 3: "実践レベル", 4: "推進レベル" };
+    const chapters = ["基本理解", "Delegation", "Description", "Discernment", "Diligence"];
+
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 py-8" style={{ background: "linear-gradient(160deg, #1A2A3E 0%, #2A4A6E 50%, #6AA3D8 100%)" }}>
+        <div className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl">
+          <div className="text-center mb-8">
+            <p className="text-shin-mid text-sm mb-2">診断完了</p>
+            <h2 className="text-shin-charcoal text-2xl font-bold mb-1">お疲れさまでした！</h2>
+            <p className="text-shin-mid text-sm">AIリテラシースコア</p>
+            <div className="mt-4 inline-block">
+              <span className="text-5xl font-bold" style={{ color: levelColors[level] }}>{totalScore}</span>
+              <span className="text-shin-mid text-lg"> / {totalMax}</span>
+            </div>
+            <div className="mt-2">
+              <span className="inline-block px-4 py-1 rounded-full text-sm font-semibold text-white" style={{ backgroundColor: levelColors[level] }}>
+                Lv.{level} {levelLabels[level]}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mb-8">
+            {chapters.map(ch => {
+              const cs = finalResponse.chapterScores[ch];
+              if (!cs) return null;
+              const chPct = Math.round(cs.rate * 100);
+              const chColor = chPct >= 80 ? "#34A77B" : chPct >= 60 ? "#6AA3D8" : chPct >= 40 ? "#E8A838" : "#D94F4F";
+              return (
+                <div key={ch} className="bg-shin-blue-pale rounded-xl p-3 text-center">
+                  <p className="text-shin-mid text-xs mb-1">{ch}</p>
+                  <p className="font-bold text-lg" style={{ color: chColor }}>{cs.score}/{cs.max}</p>
+                  <div className="w-full bg-shin-blue-light rounded-full h-1.5 mt-2">
+                    <div className="h-1.5 rounded-full transition-all" style={{ width: `${chPct}%`, backgroundColor: chColor }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="text-shin-mid text-sm text-center">
+            回答データは企業の診断レポートに活用されます。<br />ご協力ありがとうございました。
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Survey phase
+  if (phase === "survey" && currentQuestion) {
+    const currentAnswer = surveyAnswers[currentQuestion.id];
+    const canProceed = currentQuestion.type === "single"
+      ? !!currentAnswer
+      : Array.isArray(currentAnswer) && currentAnswer.length > 0;
+
+    return (
+      <div className="min-h-screen flex flex-col bg-[#F5F8FC]">
+        {/* Header */}
+        <div className="bg-shin-dark text-white px-4 py-3 sticky top-0 z-10">
+          <div className="max-w-2xl mx-auto">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[#BCC8DE] text-xs">{company?.name}</span>
+              <span className="text-[#BCC8DE] text-xs">{currentSection.title}</span>
+            </div>
+            <div className="w-full bg-shin-blue/30 rounded-full h-1.5">
+              <div className="bg-shin-blue h-1.5 rounded-full transition-all" style={{ width: `${progress}%` }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Question */}
+        <div className="flex-1 flex items-start justify-center px-4 py-8">
+          <div className="w-full max-w-2xl">
+            <div className="bg-shin-blue-light text-shin-blue-dark text-xs font-semibold px-3 py-1 rounded-full inline-block mb-4">
+              {currentSection.title}
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow-sm mb-6">
+              <p className="text-shin-charcoal text-lg font-semibold mb-6">{currentQuestion.text}</p>
+              {currentQuestion.type === "single" ? (
+                <div className="space-y-3">
+                  {currentQuestion.options.map(opt => (
+                    <button
+                      key={opt}
+                      onClick={() => handleSurveyAnswer(opt)}
+                      className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all ${currentAnswer === opt ? "border-shin-blue bg-shin-blue-light text-shin-charcoal font-semibold" : "border-shin-accent bg-white text-shin-charcoal hover:border-shin-blue hover:bg-shin-blue-pale"}`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-shin-mid text-xs mb-2">複数選択可</p>
+                  {currentQuestion.options.map(opt => {
+                    const selected = Array.isArray(currentAnswer) && currentAnswer.includes(opt);
+                    return (
+                      <button
+                        key={opt}
+                        onClick={() => {
+                          const current = Array.isArray(currentAnswer) ? currentAnswer : [];
+                          const next = selected ? current.filter(v => v !== opt) : [...current, opt];
+                          handleSurveyAnswer(next);
+                        }}
+                        className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all ${selected ? "border-shin-blue bg-shin-blue-light text-shin-charcoal font-semibold" : "border-shin-accent bg-white text-shin-charcoal hover:border-shin-blue hover:bg-shin-blue-pale"}`}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center">
+              <button onClick={handleBack} disabled={sectionIndex === 0 && questionIndex === 0} className="text-shin-mid hover:text-shin-charcoal disabled:opacity-30 px-4 py-2">← 戻る</button>
+              <button onClick={handleNext} disabled={!canProceed} className="bg-shin-blue text-white rounded-lg px-6 py-2.5 font-semibold disabled:opacity-50 hover:bg-shin-blue-dark transition-colors">
+                {sectionIndex === SURVEY_SECTIONS.length - 1 && questionIndex === visibleQuestions.length - 1 ? "テストへ進む →" : "次へ →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Test phase
+  if (phase === "test") {
+    const q = LITERACY_TEST[testIndex];
+    return (
+      <div className="min-h-screen flex flex-col bg-[#F5F8FC]">
+        <div className="bg-shin-dark text-white px-4 py-3 sticky top-0 z-10">
+          <div className="max-w-2xl mx-auto">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[#BCC8DE] text-xs">{company?.name}</span>
+              <span className="text-[#BCC8DE] text-xs">AIリテラシーテスト {testIndex + 1}/{LITERACY_TEST.length}</span>
+            </div>
+            <div className="w-full bg-shin-blue/30 rounded-full h-1.5">
+              <div className="bg-shin-blue h-1.5 rounded-full transition-all" style={{ width: `${progress}%` }} />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 flex items-start justify-center px-4 py-8">
+          <div className="w-full max-w-2xl">
+            <div className="bg-shin-blue-light text-shin-blue-dark text-xs font-semibold px-3 py-1 rounded-full inline-block mb-4">
+              {q.chapter}
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow-sm mb-6">
+              <p className="text-shin-charcoal text-lg font-semibold mb-6">{q.question}</p>
+              <div className="space-y-3">
+                {q.options.map((opt, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleTestAnswer(i)}
+                    className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all ${selectedOption === i ? "border-shin-blue bg-shin-blue-light text-shin-charcoal font-semibold" : "border-shin-accent bg-white text-shin-charcoal hover:border-shin-blue hover:bg-shin-blue-pale"}`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <button onClick={handleTestBack} className="text-shin-mid hover:text-shin-charcoal px-4 py-2">← 戻る</button>
+              <button onClick={handleTestNext} disabled={selectedOption === null} className="bg-shin-blue text-white rounded-lg px-6 py-2.5 font-semibold disabled:opacity-50 hover:bg-shin-blue-dark transition-colors">
+                {testIndex === LITERACY_TEST.length - 1 ? "診断を完了する →" : "次へ →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
