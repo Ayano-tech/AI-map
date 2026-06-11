@@ -65,6 +65,7 @@ export default function AdminDashboard() {
   const [responses, setResponses] = useState<ResponseData[]>([]);
   const [report, setReport] = useState<string | null>(null);
   const [generatingReport, setGeneratingReport] = useState(false);
+  const [generateElapsed, setGenerateElapsed] = useState(0);
   const [showDetail, setShowDetail] = useState(false);
 
   useEffect(() => {
@@ -124,6 +125,11 @@ export default function AdminDashboard() {
   async function handleGenerateReport() {
     if (!selectedCompany || responses.length === 0) return;
     setGeneratingReport(true);
+    setGenerateElapsed(0);
+    const start = Date.now();
+    const timer = setInterval(() => {
+      setGenerateElapsed(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
     try {
       const res = await fetch("/api/diagnose", {
         method: "POST",
@@ -133,6 +139,7 @@ export default function AdminDashboard() {
       const data = await res.json();
       setReport(data.report);
     } finally {
+      clearInterval(timer);
       setGeneratingReport(false);
     }
   }
@@ -337,11 +344,36 @@ export default function AdminDashboard() {
                 );
               })()}
 
-              <div className="flex gap-3">
+              <div className="space-y-3">
                 <button onClick={handleGenerateReport} disabled={generatingReport || responses.length === 0} className="bg-shin-blue text-white rounded-lg px-6 py-2.5 font-semibold disabled:opacity-50 hover:bg-shin-blue-dark transition-colors">
                   {generatingReport ? "生成中..." : "診断レポートを生成"}
                 </button>
-                {responses.length === 0 && <p className="text-shin-mid text-sm self-center">回答データがない場合は生成できません</p>}
+                {responses.length === 0 && <p className="text-shin-mid text-sm">回答データがない場合は生成できません</p>}
+                {generatingReport && (
+                  <div className="bg-shin-blue-pale border border-shin-blue rounded-xl p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-4 h-4 border-2 border-shin-blue border-t-transparent rounded-full animate-spin shrink-0" />
+                      <p className="text-shin-charcoal font-semibold text-sm">AIがレポートを生成しています</p>
+                      <span className="ml-auto text-shin-blue font-mono font-bold text-sm">{generateElapsed}秒</span>
+                    </div>
+                    <div className="w-full bg-white rounded-full h-1.5 mb-3 overflow-hidden">
+                      <div
+                        className="h-1.5 bg-shin-blue rounded-full transition-all duration-1000"
+                        style={{ width: `${Math.min(95, (generateElapsed / 60) * 100)}%` }}
+                      />
+                    </div>
+                    <div className="text-xs text-shin-mid space-y-1">
+                      <p className={generateElapsed >= 0 ? "text-shin-charcoal" : ""}>
+                        {generateElapsed < 10 && "📋 回答データを解析中..."}
+                        {generateElapsed >= 10 && generateElapsed < 25 && "🔍 AIリテラシーマップを作成中..."}
+                        {generateElapsed >= 25 && generateElapsed < 40 && "💡 AI活用機会を特定中..."}
+                        {generateElapsed >= 40 && generateElapsed < 55 && "🗺 ロードマップを設計中..."}
+                        {generateElapsed >= 55 && "✍️ レポートを仕上げ中..."}
+                      </p>
+                      <p className="text-shin-light">目安：約60〜90秒（回答数{responses.length}件）</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {parsedReport && (
