@@ -106,5 +106,26 @@ ${JSON.stringify(responses, null, 2)}
   });
 
   const textContent = message.content.find((c) => c.type === "text");
-  return textContent?.text || "";
+  const raw = textContent?.text || "";
+
+  // Strategy 1: strip markdown code block
+  const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+  try {
+    JSON.parse(stripped);
+    return stripped;
+  } catch { /* fall through */ }
+
+  // Strategy 2: extract the outermost {...} block
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start !== -1 && end !== -1 && end > start) {
+    const extracted = raw.slice(start, end + 1);
+    try {
+      JSON.parse(extracted);
+      return extracted;
+    } catch { /* fall through */ }
+  }
+
+  // Return raw as-is so the caller can show an error
+  return raw;
 }

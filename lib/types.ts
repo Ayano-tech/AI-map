@@ -39,6 +39,7 @@ export interface TestQuestion {
   question: string;
   options: string[];
   correctIndex: number;
+  explanation: string;
 }
 
 export interface ChapterScore {
