@@ -152,7 +152,12 @@ export default function AdminDashboard() {
 
   let parsedReport: Record<string, unknown> | null = null;
   if (report) {
-    try { parsedReport = JSON.parse(report); } catch { parsedReport = null; }
+    try {
+      const parsed = JSON.parse(report);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        parsedReport = parsed;
+      }
+    } catch { parsedReport = null; }
   }
 
   return (
@@ -391,8 +396,14 @@ export default function AdminDashboard() {
               )}
               {report && !parsedReport && (
                 <div className="border-t border-shin-accent pt-6">
-                  <p className="font-semibold mb-2">診断レポート（生テキスト）</p>
-                  <pre className="bg-gray-50 rounded-lg p-4 text-xs overflow-x-auto whitespace-pre-wrap">{report}</pre>
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-3">
+                    <p className="text-red-700 font-semibold text-sm mb-1">⚠️ レポートの解析に失敗しました</p>
+                    <p className="text-red-600 text-xs">AIの応答をJSONとして読み取れませんでした。再度「診断レポートを生成」を試してください。</p>
+                  </div>
+                  <details className="text-xs text-shin-light">
+                    <summary className="cursor-pointer">AIの生応答を表示（デバッグ用）</summary>
+                    <pre className="mt-2 bg-gray-50 rounded-lg p-4 text-xs overflow-x-auto whitespace-pre-wrap">{report}</pre>
+                  </details>
                 </div>
               )}
             </div>
