@@ -244,6 +244,61 @@ export default function AdminDashboard() {
                 </div>
               )}
 
+              {responses.length > 0 && (() => {
+                const usageScore = (r: ResponseData) => {
+                  const ans = r.surveyAnswers?.["Q7-2"] as string | undefined;
+                  if (ans === "業務で日常的に使っている") return 85;
+                  if (ans === "試したことはある（業務以外含む）") return 50;
+                  return 15;
+                };
+                const points = responses.map(r => ({
+                  x: (r.testScore / 20) * 100,
+                  y: usageScore(r),
+                }));
+                const counts = { promoter: 0, knowledge: 0, selfStyle: 0, notStarted: 0 };
+                points.forEach(p => {
+                  const highLiteracy = p.x >= 50;
+                  const highUsage = p.y >= 50;
+                  if (highLiteracy && highUsage) counts.promoter++;
+                  else if (highLiteracy && !highUsage) counts.knowledge++;
+                  else if (!highLiteracy && highUsage) counts.selfStyle++;
+                  else counts.notStarted++;
+                });
+                const total = points.length;
+                const pct = (n: number) => total > 0 ? Math.round((n / total) * 100) : 0;
+                return (
+                  <div>
+                    <h4 className="font-semibold mb-1">AI活用ポジショニングマップ</h4>
+                    <p className="text-shin-mid text-xs mb-3">縦軸：AIの活用頻度（実践度）／横軸：AIリテラシー（知識・スキル）。回答者ごとの現在地をプロットし、活用定着に向けた打ち手の方向性を確認できます。</p>
+                    <div className="flex flex-col md:flex-row gap-4 items-start">
+                      <div className="grid grid-cols-[20px_1fr] grid-rows-[1fr_20px] gap-2 w-full max-w-sm">
+                        <div className="row-start-1 col-start-1 flex items-center justify-center">
+                          <span className="-rotate-90 whitespace-nowrap text-xs text-shin-light">活用頻度 高 ↑</span>
+                        </div>
+                        <div className="row-start-1 col-start-2 relative aspect-square rounded-xl border border-shin-accent overflow-hidden">
+                          <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
+                            <div className="border-b border-r border-shin-accent bg-blue-50 p-2"><span className="text-xs font-semibold text-blue-700">知識先行層</span></div>
+                            <div className="border-b border-shin-accent bg-green-50 p-2 flex items-start justify-end"><span className="text-xs font-semibold text-green-700">推進層</span></div>
+                            <div className="border-r border-shin-accent bg-gray-50 p-2 flex items-end"><span className="text-xs font-semibold text-shin-mid">未着手層</span></div>
+                            <div className="bg-yellow-50 p-2 flex items-end justify-end"><span className="text-xs font-semibold text-yellow-700">我流活用層</span></div>
+                          </div>
+                          {points.map((p, i) => (
+                            <div key={i} className="absolute w-3 h-3 rounded-full bg-shin-blue border-2 border-white shadow" style={{ left: `calc(${p.x}% - 6px)`, top: `calc(${100 - p.y}% - 6px)` }} />
+                          ))}
+                        </div>
+                        <div className="row-start-2 col-start-2 text-center text-xs text-shin-light">AIリテラシー 高 →</div>
+                      </div>
+                      <div className="flex-1 space-y-2 text-sm w-full">
+                        <div className="flex justify-between items-center bg-green-50 rounded-lg px-3 py-2"><span className="font-semibold text-green-700">推進層（知識・実践とも高い）</span><span className="font-bold">{counts.promoter}名（{pct(counts.promoter)}%）</span></div>
+                        <div className="flex justify-between items-center bg-blue-50 rounded-lg px-3 py-2"><span className="font-semibold text-blue-700">知識先行層（知識はあるが未実践）</span><span className="font-bold">{counts.knowledge}名（{pct(counts.knowledge)}%）</span></div>
+                        <div className="flex justify-between items-center bg-yellow-50 rounded-lg px-3 py-2"><span className="font-semibold text-yellow-700">我流活用層（実践先行・知識不足）</span><span className="font-bold">{counts.selfStyle}名（{pct(counts.selfStyle)}%）</span></div>
+                        <div className="flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2"><span className="font-semibold text-shin-mid">未着手層（知識・実践とも低い）</span><span className="font-bold">{counts.notStarted}名（{pct(counts.notStarted)}%）</span></div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="flex gap-3">
                 <button onClick={handleGenerateReport} disabled={generatingReport || responses.length === 0} className="bg-shin-blue text-white rounded-lg px-6 py-2.5 font-semibold disabled:opacity-50 hover:bg-shin-blue-dark transition-colors">
                   {generatingReport ? "生成中..." : "診断レポートを生成"}
