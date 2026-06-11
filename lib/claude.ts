@@ -3,7 +3,7 @@ import { SurveyResponse, Company } from "./types";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
-const DIAGNOSTIC_SYSTEM_PROMPT = `あなたは株式会社SHINのAI活用診断アナリストです。
+const DIAGNOSTIC_SYSTEM_PROMPT = `あなたはSHINのAI活用診断アナリストです。
 
 ## 役割
 企業の従業員から収集したアンケートとAIリテラシーテストの結果を分析し、「生成AI活用診断レポート」を生成します。

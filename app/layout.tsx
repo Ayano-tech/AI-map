@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "生成AI活用診断 | 株式会社SHIN",
+  title: "生成AI活用診断 | SHIN",
   description: "企業向け生成AI活用診断サービス",
 };
 
