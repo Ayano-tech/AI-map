@@ -45,10 +45,23 @@ function parseDuration(duration: string): [number, number] {
   return [0, 1];
 }
 
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+      className="text-xs px-2 py-1 rounded-md border border-shin-accent hover:border-shin-blue text-shin-mid hover:text-shin-blue transition-colors whitespace-nowrap"
+    >
+      {copied ? "✓ コピー済" : label}
+    </button>
+  );
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
+  const [origin, setOrigin] = useState("");
   const [addForm, setAddForm] = useState({
     name: "", industry: "", employeeCount: "",
     foundingYearRange: "", annualRevenueRange: "", itInvestmentLevel: "",
@@ -80,6 +93,7 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => { fetchCompanies(); }, [fetchCompanies]);
+  useEffect(() => { setOrigin(window.location.origin); }, []);
 
   async function handleAddCompany(e: React.FormEvent) {
     e.preventDefault();
@@ -234,8 +248,10 @@ export default function AdminDashboard() {
                     <p className="text-shin-mid text-sm">{company.industry} / {company.employeeCount}名</p>
                     <p className="text-shin-light text-xs">{new Date(company.createdAt).toLocaleDateString("ja-JP")} 登録</p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
                     <span className="inline-block bg-shin-blue-light text-shin-blue-dark px-3 py-1 rounded-full text-sm font-bold tracking-wider">{company.code}</span>
+                    <CopyButton text={`${origin}/survey/${company.code}`} label="アンケートURL" />
+                    <CopyButton text={`${origin}/report/${company.code}`} label="レポートURL" />
                     <button onClick={() => handleSelectCompany(company)} className="bg-shin-blue text-white rounded-lg px-4 py-1.5 text-sm font-semibold hover:bg-shin-blue-dark transition-colors">詳細</button>
                     <button onClick={() => handleDelete(company.id)} className="text-red-400 hover:text-red-600 text-sm">削除</button>
                   </div>
@@ -262,6 +278,23 @@ export default function AdminDashboard() {
                 {selectedCompany.sheetUrl && (
                   <div><a href={selectedCompany.sheetUrl} target="_blank" rel="noopener noreferrer" className="text-shin-blue hover:underline">スプレッドシートを開く →</a></div>
                 )}
+              </div>
+              <div className="bg-shin-blue-pale rounded-xl p-4 space-y-2">
+                <p className="text-xs font-semibold text-shin-charcoal mb-2">配布用URL</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <p className="text-xs text-shin-mid mb-0.5">従業員アンケート</p>
+                    <p className="text-xs font-mono text-shin-charcoal break-all">{origin}/survey/{selectedCompany.code}</p>
+                  </div>
+                  <CopyButton text={`${origin}/survey/${selectedCompany.code}`} label="コピー" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <p className="text-xs text-shin-mid mb-0.5">企業向けレポート確認</p>
+                    <p className="text-xs font-mono text-shin-charcoal break-all">{origin}/report/{selectedCompany.code}</p>
+                  </div>
+                  <CopyButton text={`${origin}/report/${selectedCompany.code}`} label="コピー" />
+                </div>
               </div>
 
               {responses.length > 0 && (
