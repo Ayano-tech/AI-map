@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect, useCallback, Fragment } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Company } from "@/lib/types";
+import DiagnosticReportView from "@/app/admin/components/DiagnosticReportView";
 
 interface ResponseData {
   testScore: number;
@@ -34,16 +35,6 @@ function computePositioning(responses: ResponseData[]) {
   return { points, counts, total, pct };
 }
 
-// "1〜2ヶ月" -> [1,2], "6ヶ月〜" -> [6,12], "3ヶ月" -> [0,3]
-function parseDuration(duration: string): [number, number] {
-  const nums = (duration.match(/\d+/g) || []).map(Number);
-  if (nums.length >= 2) return [nums[0], nums[1]];
-  if (nums.length === 1) {
-    if (duration.includes("〜") && duration.trim().endsWith("〜")) return [nums[0], nums[0] + 6];
-    return [0, nums[0]];
-  }
-  return [0, 1];
-}
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -354,164 +345,16 @@ export default function AdminDashboard() {
               </div>
 
               {parsedReport && (
-                <div className="space-y-6 border-t border-shin-accent pt-6">
-                  <h4 className="font-bold text-shin-charcoal text-lg">診断レポート</h4>
-                  {"executiveSummary" in parsedReport && (
-                    <div className="bg-shin-blue-pale rounded-xl p-4">
-                      <p className="font-semibold text-shin-charcoal mb-2">エグゼクティブサマリー</p>
-                      <p className="text-shin-charcoal">{String(parsedReport.executiveSummary)}</p>
-                    </div>
-                  )}
-                  {"keyInsight" in parsedReport && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                      <p className="font-semibold text-yellow-800 mb-1">Key Insight</p>
-                      <p className="text-yellow-900">{String(parsedReport.keyInsight)}</p>
-                    </div>
-                  )}
-                  {"aiOpportunities" in parsedReport && (() => {
-                    if (!parsedReport.aiOpportunities || typeof parsedReport.aiOpportunities !== "object") return null;
-                    const opps = parsedReport.aiOpportunities as { quickWins?: Array<{task: string; aiProposal: string; estimatedImpact: string}>; humanInLoop?: Array<{task: string; aiProposal: string; estimatedImpact: string}> };
-                    return (
-                      <div>
-                        <p className="font-semibold mb-3">AI活用機会</p>
-                        <div className="space-y-4">
-                          {opps.quickWins && opps.quickWins.length > 0 && (
-                            <div>
-                              <p className="text-green-700 font-medium text-sm mb-2">Quick Win（即効性あり）</p>
-                              <div className="space-y-2">
-                                {opps.quickWins.map((item, i) => (
-                                  <div key={i} className="bg-green-50 rounded-lg p-3 text-sm">
-                                    <p className="font-semibold">{item.task}</p>
-                                    <p className="text-shin-mid">{item.aiProposal}</p>
-                                    <p className="text-green-700 mt-1">効果: {item.estimatedImpact}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {opps.humanInLoop && opps.humanInLoop.length > 0 && (
-                            <div>
-                              <p className="text-blue-700 font-medium text-sm mb-2">Human-in-the-Loop</p>
-                              <div className="space-y-2">
-                                {opps.humanInLoop.map((item, i) => (
-                                  <div key={i} className="bg-blue-50 rounded-lg p-3 text-sm">
-                                    <p className="font-semibold">{item.task}</p>
-                                    <p className="text-shin-mid">{item.aiProposal}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  {"roadmap" in parsedReport && Array.isArray(parsedReport.roadmap) && (() => {
-                    const roadmap = parsedReport.roadmap as Array<{phase: number; title: string; duration: string; goals: string[]; actions: string[]; metrics: string[]; shinService: string}>;
-                    const ranges = roadmap.map(p => parseDuration(p.duration));
-                    const totalMonths = Math.max(12, ...ranges.map(([, e]) => e));
-                    const barColors = ["bg-shin-blue", "bg-emerald-500", "bg-purple-500", "bg-orange-500"];
-                    const positioning = computePositioning(responses);
-                    const segments = [
-                      { label: "推進層", pct: positioning.pct(positioning.counts.promoter) },
-                      { label: "知識先行層", pct: positioning.pct(positioning.counts.knowledge) },
-                      { label: "我流活用層", pct: positioning.pct(positioning.counts.selfStyle) },
-                      { label: "未着手層", pct: positioning.pct(positioning.counts.notStarted) },
-                    ];
-                    const dominant = segments.reduce((a, b) => (b.pct > a.pct ? b : a));
-                    return (
-                      <div className="space-y-6">
-                        <div>
-                          <p className="font-semibold mb-3">実行ロードマップ（スケジュール）</p>
-                          <div className="space-y-2">
-                            {roadmap.map((phase, i) => {
-                              const [start, end] = ranges[i];
-                              return (
-                                <div key={phase.phase} className="flex items-center gap-3">
-                                  <div className="w-36 shrink-0 text-xs">
-                                    <p className="font-semibold text-shin-charcoal">Phase {phase.phase}</p>
-                                    <p className="text-shin-mid">{phase.title}</p>
-                                  </div>
-                                  <div className="flex-1 relative h-7 bg-gray-100 rounded-md">
-                                    <div
-                                      className={`absolute top-0 h-7 rounded-md ${barColors[i % barColors.length]}`}
-                                      style={{ left: `${(start / totalMonths) * 100}%`, width: `${((end - start) / totalMonths) * 100}%` }}
-                                    />
-                                  </div>
-                                  <div className="w-32 shrink-0 text-[10px] text-shin-mid">{phase.duration}・{phase.shinService}</div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          <div className="flex justify-between text-[10px] text-shin-light mt-1 pl-[9.5rem] pr-32">
-                            <span>0ヶ月</span>
-                            <span>{totalMonths}ヶ月〜</span>
-                          </div>
-                        </div>
-
-                        {responses.length > 0 && (
-                          <div>
-                            <p className="font-semibold mb-3">活用定着のステップ（Before → After）</p>
-                            <div className="flex flex-col md:flex-row gap-2 items-stretch">
-                              <div className="flex-1 border border-shin-accent rounded-xl p-3 bg-gray-50">
-                                <p className="text-xs font-bold text-shin-mid mb-1">現状</p>
-                                <p className="text-sm">{dominant.label}が中心（{dominant.pct}%）</p>
-                                <p className="text-xs text-shin-mid mt-1">推進層 {positioning.pct(positioning.counts.promoter)}%</p>
-                              </div>
-                              {roadmap.map((phase, i) => (
-                                <Fragment key={phase.phase}>
-                                  <div className="flex items-center justify-center text-shin-light">→</div>
-                                  <div className={`flex-1 border rounded-xl p-3 ${i === roadmap.length - 1 ? "border-shin-blue bg-shin-blue-pale" : "border-shin-accent"}`}>
-                                    <p className="text-xs font-bold text-shin-blue mb-1">Phase {phase.phase} 完了後</p>
-                                    <ul className="text-sm space-y-1">
-                                      {phase.goals.map((g, gi) => <li key={gi}>・{g}</li>)}
-                                    </ul>
-                                  </div>
-                                </Fragment>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <div>
-                          <p className="font-semibold mb-3">フェーズ詳細</p>
-                          <div className="space-y-3">
-                            {roadmap.map((phase) => (
-                              <div key={phase.phase} className="border border-shin-accent rounded-xl p-4">
-                                <div className="flex justify-between items-start mb-2">
-                                  <p className="font-semibold">Phase {phase.phase}: {phase.title}</p>
-                                  <div className="flex gap-2">
-                                    <span className="bg-shin-blue-light text-shin-blue-dark text-xs px-2 py-1 rounded-full">{phase.duration}</span>
-                                    <span className="bg-gray-100 text-shin-mid text-xs px-2 py-1 rounded-full">{phase.shinService}</span>
-                                  </div>
-                                </div>
-                                <div className="grid sm:grid-cols-3 gap-3 text-sm">
-                                  <div>
-                                    <p className="text-xs font-semibold text-shin-mid mb-1">ゴール</p>
-                                    <ul className="text-shin-mid space-y-1">{phase.goals?.map((g, i) => <li key={i}>• {g}</li>)}</ul>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs font-semibold text-shin-mid mb-1">アクション</p>
-                                    <ul className="text-shin-mid space-y-1">{phase.actions?.map((a, i) => <li key={i}>• {a}</li>)}</ul>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs font-semibold text-shin-mid mb-1">指標</p>
-                                    <ul className="text-shin-mid space-y-1">{phase.metrics?.map((m, i) => <li key={i}>• {m}</li>)}</ul>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  <div className="mt-4">
-                    <details className="text-xs text-shin-light">
-                      <summary className="cursor-pointer">生データ（JSON）を表示</summary>
-                      <pre className="mt-2 bg-gray-100 rounded p-3 overflow-x-auto text-xs">{JSON.stringify(parsedReport, null, 2)}</pre>
-                    </details>
-                  </div>
+                <div className="border-t border-shin-accent pt-6">
+                  <DiagnosticReportView
+                    report={parsedReport as Record<string, unknown>}
+                    companyName={selectedCompany.name}
+                    responseCount={responses.length}
+                  />
+                  <details className="text-xs text-shin-light mt-4">
+                    <summary className="cursor-pointer">生データ（JSON）を表示</summary>
+                    <pre className="mt-2 bg-gray-100 rounded p-3 overflow-x-auto text-xs">{JSON.stringify(parsedReport, null, 2)}</pre>
+                  </details>
                 </div>
               )}
               {report && !parsedReport && (

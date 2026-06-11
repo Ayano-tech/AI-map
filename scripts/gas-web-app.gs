@@ -54,6 +54,9 @@ function doPost(e) {
     if (action === "saveResponse") {
       return handleSaveResponse(data);
     }
+    if (action === "saveReport") {
+      return handleSaveReport(data);
+    }
 
     return jsonRes({ error: "Unknown action" });
   } catch (err) {
@@ -244,6 +247,23 @@ function handleSaveResponse(data) {
     wm.ai_anxiety_level    || 0,
   ]);
 
+  return jsonRes({ success: true });
+}
+
+// ----------------------------------------
+// 診断レポート保存
+// ----------------------------------------
+function handleSaveReport(data) {
+  const { companySheetId, reportJson, generatedAt } = data;
+  const ss = SpreadsheetApp.openById(companySheetId);
+  const sheet = ss.getSheetByName("集計サマリー");
+
+  // ヘッダーがなければ作成
+  if (sheet.getLastRow() === 0) {
+    sheet.getRange("A1:C1").setValues([["生成日時", "レポートJSON", "バージョン"]]);
+  }
+
+  sheet.appendRow([generatedAt || new Date().toISOString(), reportJson, "v1"]);
   return jsonRes({ success: true });
 }
 

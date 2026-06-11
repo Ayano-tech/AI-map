@@ -86,7 +86,7 @@ export async function generateDiagnosticReport(
   responses: SurveyResponse[]
 ): Promise<string> {
   const message = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-4-6",
     max_tokens: 4000,
     system: DIAGNOSTIC_SYSTEM_PROMPT,
     messages: [
@@ -106,5 +106,7 @@ ${JSON.stringify(responses, null, 2)}
   });
 
   const textContent = message.content.find((c) => c.type === "text");
-  return textContent?.text || "";
+  const raw = textContent?.text || "";
+  // Strip markdown code blocks if present
+  return raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
 }
