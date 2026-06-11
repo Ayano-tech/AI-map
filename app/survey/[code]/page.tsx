@@ -5,7 +5,7 @@ import { Company, SurveyResponse } from "@/lib/types";
 import { SURVEY_SECTIONS, LITERACY_TEST } from "@/lib/survey-data";
 import { calculateScores, calcWorkflowMetrics } from "@/lib/scoring";
 
-type Phase = "loading" | "intro" | "survey" | "test" | "complete" | "error";
+type Phase = "loading" | "intro" | "survey" | "test-intro" | "test" | "complete" | "error";
 
 export default function SurveyPage() {
   const params = useParams();
@@ -73,7 +73,7 @@ export default function SurveyPage() {
       setSectionIndex(si => si + 1);
       setQuestionIndex(0);
     } else {
-      setPhase("test");
+      setPhase("test-intro");
     }
   }
 
@@ -301,6 +301,69 @@ export default function SurveyPage() {
               <button onClick={handleBack} disabled={sectionIndex === 0 && questionIndex === 0} className="text-shin-mid hover:text-shin-charcoal disabled:opacity-30 px-4 py-2">← 戻る</button>
               <button onClick={handleNext} disabled={!canProceed} className="bg-shin-blue text-white rounded-lg px-6 py-2.5 font-semibold disabled:opacity-50 hover:bg-shin-blue-dark transition-colors">
                 {sectionIndex === SURVEY_SECTIONS.length - 1 && questionIndex === visibleQuestions.length - 1 ? "テストへ進む →" : "次へ →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Test intro screen
+  if (phase === "test-intro") {
+    const chapters = [
+      { name: "基本理解", count: 5, desc: "生成AIの仕組み・リスク・できること" },
+      { name: "Delegation（委任判断力）", count: 4, desc: "AIに任せてよい業務の線引き" },
+      { name: "Description（指示設計力）", count: 4, desc: "的確なプロンプトの設計" },
+      { name: "Discernment（出力評価力）", count: 4, desc: "AI出力の批判的評価" },
+      { name: "Diligence（倫理・継続力）", count: 3, desc: "セキュリティ・倫理・継続改善" },
+    ];
+    return (
+      <div className="min-h-screen flex flex-col bg-[#F5F8FC]">
+        <div className="bg-shin-dark text-white px-4 py-3">
+          <div className="max-w-2xl mx-auto flex justify-between items-center">
+            <span className="text-[#BCC8DE] text-xs">{company?.name}</span>
+            <span className="text-[#BCC8DE] text-xs">アンケート完了</span>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center px-4 py-10">
+          <div className="w-full max-w-xl">
+            <div className="bg-white rounded-2xl p-8 shadow-sm">
+              <div className="text-center mb-6">
+                <span className="inline-block bg-shin-blue text-white text-xs font-bold px-3 py-1 rounded-full mb-3">ここからはテストです</span>
+                <h2 className="text-2xl font-bold text-shin-charcoal mb-2">AIリテラシーテスト</h2>
+                <p className="text-shin-mid text-sm">アンケートへのご回答ありがとうございました。<br />続いて、AIに関する知識を確認する全20問のテストです。</p>
+              </div>
+
+              <div className="bg-shin-blue-pale rounded-xl px-5 py-3 mb-5 flex items-center gap-3">
+                <span className="text-2xl">⏱</span>
+                <div>
+                  <p className="font-semibold text-shin-charcoal text-sm">所要時間の目安：約5〜8分</p>
+                  <p className="text-shin-mid text-xs">全20問・正解・不正解は問いません</p>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <p className="text-xs font-semibold text-shin-mid mb-3">テストの構成</p>
+                <div className="space-y-2">
+                  {chapters.map((c, i) => (
+                    <div key={i} className="flex items-start gap-3 text-sm">
+                      <span className="shrink-0 w-5 h-5 rounded-full bg-shin-blue text-white text-xs flex items-center justify-center font-bold mt-0.5">{i + 1}</span>
+                      <div className="flex-1">
+                        <span className="font-semibold text-shin-charcoal">{c.name}</span>
+                        <span className="text-shin-mid ml-1">（{c.count}問）</span>
+                        <p className="text-shin-light text-xs">{c.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={() => setPhase("test")}
+                className="w-full bg-shin-blue text-white rounded-xl py-3 font-semibold hover:bg-shin-blue-dark transition-colors"
+              >
+                テストを開始する →
               </button>
             </div>
           </div>
