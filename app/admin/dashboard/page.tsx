@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { Company } from "@/lib/types";
 
@@ -9,6 +9,40 @@ interface ResponseData {
   chapterScores: Record<string, { score: number; max: number; rate: number }>;
   submittedAt: string;
   surveyAnswers: Record<string, string | string[]>;
+}
+
+function usageScore(r: ResponseData): number {
+  const ans = r.surveyAnswers?.["Q7-2"] as string | undefined;
+  if (ans === "業務で日常的に使っている") return 85;
+  if (ans === "試したことはある（業務以外含む）") return 50;
+  return 15;
+}
+
+function computePositioning(responses: ResponseData[]) {
+  const points = responses.map(r => ({ x: (r.testScore / 20) * 100, y: usageScore(r) }));
+  const counts = { promoter: 0, knowledge: 0, selfStyle: 0, notStarted: 0 };
+  points.forEach(p => {
+    const highLiteracy = p.x >= 50;
+    const highUsage = p.y >= 50;
+    if (highLiteracy && highUsage) counts.promoter++;
+    else if (highLiteracy && !highUsage) counts.knowledge++;
+    else if (!highLiteracy && highUsage) counts.selfStyle++;
+    else counts.notStarted++;
+  });
+  const total = points.length;
+  const pct = (n: number) => total > 0 ? Math.round((n / total) * 100) : 0;
+  return { points, counts, total, pct };
+}
+
+// "1〜2ヶ月" -> [1,2], "6ヶ月〜" -> [6,12], "3ヶ月" -> [0,3]
+function parseDuration(duration: string): [number, number] {
+  const nums = (duration.match(/\d+/g) || []).map(Number);
+  if (nums.length >= 2) return [nums[0], nums[1]];
+  if (nums.length === 1) {
+    if (duration.includes("〜") && duration.trim().endsWith("〜")) return [nums[0], nums[0] + 6];
+    return [0, nums[0]];
+  }
+  return [0, 1];
 }
 
 export default function AdminDashboard() {
@@ -245,27 +279,7 @@ export default function AdminDashboard() {
               )}
 
               {responses.length > 0 && (() => {
-                const usageScore = (r: ResponseData) => {
-                  const ans = r.surveyAnswers?.["Q7-2"] as string | undefined;
-                  if (ans === "業務で日常的に使っている") return 85;
-                  if (ans === "試したことはある（業務以外含む）") return 50;
-                  return 15;
-                };
-                const points = responses.map(r => ({
-                  x: (r.testScore / 20) * 100,
-                  y: usageScore(r),
-                }));
-                const counts = { promoter: 0, knowledge: 0, selfStyle: 0, notStarted: 0 };
-                points.forEach(p => {
-                  const highLiteracy = p.x >= 50;
-                  const highUsage = p.y >= 50;
-                  if (highLiteracy && highUsage) counts.promoter++;
-                  else if (highLiteracy && !highUsage) counts.knowledge++;
-                  else if (!highLiteracy && highUsage) counts.selfStyle++;
-                  else counts.notStarted++;
-                });
-                const total = points.length;
-                const pct = (n: number) => total > 0 ? Math.round((n / total) * 100) : 0;
+                const { points, counts, pct } = computePositioning(responses);
                 return (
                   <div>
                     <h4 className="font-semibold mb-1">AI活用ポジショニングマップ</h4>
@@ -359,27 +373,106 @@ export default function AdminDashboard() {
                       </div>
                     );
                   })()}
-                  {"roadmap" in parsedReport && Array.isArray(parsedReport.roadmap) && (
-                    <div>
-                      <p className="font-semibold mb-3">実行ロードマップ</p>
-                      <div className="space-y-3">
-                        {(parsedReport.roadmap as Array<{phase: number; title: string; duration: string; goals: string[]; shinService: string}>).map((phase) => (
-                          <div key={phase.phase} className="border border-shin-accent rounded-xl p-4">
-                            <div className="flex justify-between items-start mb-2">
-                              <p className="font-semibold">Phase {phase.phase}: {phase.title}</p>
-                              <div className="flex gap-2">
-                                <span className="bg-shin-blue-light text-shin-blue-dark text-xs px-2 py-1 rounded-full">{phase.duration}</span>
-                                <span className="bg-gray-100 text-shin-mid text-xs px-2 py-1 rounded-full">{phase.shinService}</span>
-                              </div>
-                            </div>
-                            <ul className="text-sm text-shin-mid space-y-1">
-                              {phase.goals.map((g, i) => <li key={i}>• {g}</li>)}
-                            </ul>
+                  {"roadmap" in parsedReport && Array.isArray(parsedReport.roadmap) && (() => {
+                    const roadmap = parsedReport.roadmap as Array<{phase: number; title: string; duration: string; goals: string[]; actions: string[]; metrics: string[]; shinService: string}>;
+                    const ranges = roadmap.map(p => parseDuration(p.duration));
+                    const totalMonths = Math.max(12, ...ranges.map(([, e]) => e));
+                    const barColors = ["bg-shin-blue", "bg-emerald-500", "bg-purple-500", "bg-orange-500"];
+                    const positioning = computePositioning(responses);
+                    const segments = [
+                      { label: "推進層", pct: positioning.pct(positioning.counts.promoter) },
+                      { label: "知識先行層", pct: positioning.pct(positioning.counts.knowledge) },
+                      { label: "我流活用層", pct: positioning.pct(positioning.counts.selfStyle) },
+                      { label: "未着手層", pct: positioning.pct(positioning.counts.notStarted) },
+                    ];
+                    const dominant = segments.reduce((a, b) => (b.pct > a.pct ? b : a));
+                    return (
+                      <div className="space-y-6">
+                        <div>
+                          <p className="font-semibold mb-3">実行ロードマップ（スケジュール）</p>
+                          <div className="space-y-2">
+                            {roadmap.map((phase, i) => {
+                              const [start, end] = ranges[i];
+                              return (
+                                <div key={phase.phase} className="flex items-center gap-3">
+                                  <div className="w-36 shrink-0 text-xs">
+                                    <p className="font-semibold text-shin-charcoal">Phase {phase.phase}</p>
+                                    <p className="text-shin-mid">{phase.title}</p>
+                                  </div>
+                                  <div className="flex-1 relative h-7 bg-gray-100 rounded-md">
+                                    <div
+                                      className={`absolute top-0 h-7 rounded-md ${barColors[i % barColors.length]}`}
+                                      style={{ left: `${(start / totalMonths) * 100}%`, width: `${((end - start) / totalMonths) * 100}%` }}
+                                    />
+                                  </div>
+                                  <div className="w-32 shrink-0 text-[10px] text-shin-mid">{phase.duration}・{phase.shinService}</div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        ))}
+                          <div className="flex justify-between text-[10px] text-shin-light mt-1 pl-[9.5rem] pr-32">
+                            <span>0ヶ月</span>
+                            <span>{totalMonths}ヶ月〜</span>
+                          </div>
+                        </div>
+
+                        {responses.length > 0 && (
+                          <div>
+                            <p className="font-semibold mb-3">活用定着のステップ（Before → After）</p>
+                            <div className="flex flex-col md:flex-row gap-2 items-stretch">
+                              <div className="flex-1 border border-shin-accent rounded-xl p-3 bg-gray-50">
+                                <p className="text-xs font-bold text-shin-mid mb-1">現状</p>
+                                <p className="text-sm">{dominant.label}が中心（{dominant.pct}%）</p>
+                                <p className="text-xs text-shin-mid mt-1">推進層 {positioning.pct(positioning.counts.promoter)}%</p>
+                              </div>
+                              {roadmap.map((phase, i) => (
+                                <Fragment key={phase.phase}>
+                                  <div className="flex items-center justify-center text-shin-light">→</div>
+                                  <div className={`flex-1 border rounded-xl p-3 ${i === roadmap.length - 1 ? "border-shin-blue bg-shin-blue-pale" : "border-shin-accent"}`}>
+                                    <p className="text-xs font-bold text-shin-blue mb-1">Phase {phase.phase} 完了後</p>
+                                    <ul className="text-sm space-y-1">
+                                      {phase.goals.map((g, gi) => <li key={gi}>・{g}</li>)}
+                                    </ul>
+                                  </div>
+                                </Fragment>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <p className="font-semibold mb-3">フェーズ詳細</p>
+                          <div className="space-y-3">
+                            {roadmap.map((phase) => (
+                              <div key={phase.phase} className="border border-shin-accent rounded-xl p-4">
+                                <div className="flex justify-between items-start mb-2">
+                                  <p className="font-semibold">Phase {phase.phase}: {phase.title}</p>
+                                  <div className="flex gap-2">
+                                    <span className="bg-shin-blue-light text-shin-blue-dark text-xs px-2 py-1 rounded-full">{phase.duration}</span>
+                                    <span className="bg-gray-100 text-shin-mid text-xs px-2 py-1 rounded-full">{phase.shinService}</span>
+                                  </div>
+                                </div>
+                                <div className="grid sm:grid-cols-3 gap-3 text-sm">
+                                  <div>
+                                    <p className="text-xs font-semibold text-shin-mid mb-1">ゴール</p>
+                                    <ul className="text-shin-mid space-y-1">{phase.goals?.map((g, i) => <li key={i}>• {g}</li>)}</ul>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-semibold text-shin-mid mb-1">アクション</p>
+                                    <ul className="text-shin-mid space-y-1">{phase.actions?.map((a, i) => <li key={i}>• {a}</li>)}</ul>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-semibold text-shin-mid mb-1">指標</p>
+                                    <ul className="text-shin-mid space-y-1">{phase.metrics?.map((m, i) => <li key={i}>• {m}</li>)}</ul>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                   <div className="mt-4">
                     <details className="text-xs text-shin-light">
                       <summary className="cursor-pointer">生データ（JSON）を表示</summary>
