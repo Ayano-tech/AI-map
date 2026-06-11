@@ -181,46 +181,120 @@ export default function SurveyPage() {
     const level = pct >= 80 ? 4 : pct >= 60 ? 3 : pct >= 40 ? 2 : 1;
     const levelColors: Record<number, string> = { 1: "#D94F4F", 2: "#E8A838", 3: "#6AA3D8", 4: "#34A77B" };
     const levelLabels: Record<number, string> = { 1: "入門レベル", 2: "基礎レベル", 3: "実践レベル", 4: "推進レベル" };
+    const levelDescs: Record<number, string> = {
+      1: "生成AIの基礎知識の習得から始めましょう。",
+      2: "基本は押さえています。実践的な活用スキルを伸ばしましょう。",
+      3: "実務でAIを活用できるレベルです。チームへの展開を検討してみてください。",
+      4: "組織のAI活用を牽引できる推進者レベルです。"
+    };
     const chapters = ["基本理解", "Delegation", "Description", "Discernment", "Diligence"];
+    const wrongQuestions = LITERACY_TEST.filter((q, i) => finalResponse.testAnswers[i] !== q.correctIndex);
 
     return (
-      <div className="min-h-screen flex items-center justify-center px-4 py-8" style={{ background: "linear-gradient(160deg, #1A2A3E 0%, #2A4A6E 50%, #6AA3D8 100%)" }}>
-        <div className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl">
-          <div className="text-center mb-8">
-            <p className="text-shin-mid text-sm mb-2">診断完了</p>
-            <h2 className="text-shin-charcoal text-2xl font-bold mb-1">お疲れさまでした！</h2>
-            <p className="text-shin-mid text-sm">AIリテラシースコア</p>
-            <div className="mt-4 inline-block">
-              <span className="text-5xl font-bold" style={{ color: levelColors[level] }}>{totalScore}</span>
-              <span className="text-shin-mid text-lg"> / {totalMax}</span>
+      <div className="min-h-screen px-4 py-8" style={{ background: "linear-gradient(160deg, #1A2A3E 0%, #2A4A6E 50%, #6AA3D8 100%)" }}>
+        <div className="max-w-xl mx-auto space-y-4">
+
+          {/* Score card */}
+          <div className="bg-white rounded-2xl p-7 shadow-2xl text-center">
+            <p className="text-shin-mid text-sm mb-1">診断完了・個人レポート</p>
+            <h2 className="text-shin-charcoal text-2xl font-bold mb-4">お疲れさまでした！</h2>
+            <div className="inline-block mb-3">
+              <span className="text-6xl font-bold" style={{ color: levelColors[level] }}>{totalScore}</span>
+              <span className="text-shin-mid text-xl"> / {totalMax}</span>
             </div>
-            <div className="mt-2">
-              <span className="inline-block px-4 py-1 rounded-full text-sm font-semibold text-white" style={{ backgroundColor: levelColors[level] }}>
-                Lv.{level} {levelLabels[level]}
+            <div className="mb-3">
+              <span className="inline-block px-4 py-1.5 rounded-full text-sm font-semibold text-white" style={{ backgroundColor: levelColors[level] }}>
+                Lv.{level}　{levelLabels[level]}
               </span>
             </div>
+            <p className="text-shin-mid text-sm">{levelDescs[level]}</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mb-8">
-            {chapters.map(ch => {
-              const cs = finalResponse.chapterScores[ch];
-              if (!cs) return null;
-              const chPct = Math.round(cs.rate * 100);
-              const chColor = chPct >= 80 ? "#34A77B" : chPct >= 60 ? "#6AA3D8" : chPct >= 40 ? "#E8A838" : "#D94F4F";
-              return (
-                <div key={ch} className="bg-shin-blue-pale rounded-xl p-3 text-center">
-                  <p className="text-shin-mid text-xs mb-1">{ch}</p>
-                  <p className="font-bold text-lg" style={{ color: chColor }}>{cs.score}/{cs.max}</p>
-                  <div className="w-full bg-shin-blue-light rounded-full h-1.5 mt-2">
-                    <div className="h-1.5 rounded-full transition-all" style={{ width: `${chPct}%`, backgroundColor: chColor }} />
+          {/* Chapter scores */}
+          <div className="bg-white rounded-2xl p-6 shadow-2xl">
+            <h3 className="font-bold text-shin-charcoal mb-4">章別スコア</h3>
+            <div className="space-y-3">
+              {chapters.map(ch => {
+                const cs = finalResponse.chapterScores[ch];
+                if (!cs) return null;
+                const chPct = Math.round(cs.rate * 100);
+                const chColor = chPct >= 80 ? "#34A77B" : chPct >= 60 ? "#6AA3D8" : chPct >= 40 ? "#E8A838" : "#D94F4F";
+                return (
+                  <div key={ch}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm text-shin-charcoal">{ch}</span>
+                      <span className="text-sm font-bold" style={{ color: chColor }}>{cs.score}/{cs.max}</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-2">
+                      <div className="h-2 rounded-full transition-all" style={{ width: `${chPct}%`, backgroundColor: chColor }} />
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
 
-          <p className="text-shin-mid text-sm text-center">
-            回答データは企業の診断レポートに活用されます。<br />ご協力ありがとうございました。
+          {/* Wrong answers review */}
+          {wrongQuestions.length > 0 ? (
+            <div className="bg-white rounded-2xl p-6 shadow-2xl">
+              <h3 className="font-bold text-shin-charcoal mb-1">復習ポイント</h3>
+              <p className="text-shin-mid text-xs mb-4">{wrongQuestions.length}問、正解と異なる選択をしました。解説を確認しておきましょう。</p>
+              <div className="space-y-4">
+                {LITERACY_TEST.map((q, i) => {
+                  const answered = finalResponse.testAnswers[i];
+                  const isCorrect = answered === q.correctIndex;
+                  if (isCorrect) return null;
+                  return (
+                    <div key={i} className="border border-red-100 rounded-xl p-4 bg-red-50">
+                      <div className="flex items-start gap-2 mb-2">
+                        <span className="shrink-0 text-red-400 font-bold text-sm">✗</span>
+                        <p className="text-shin-charcoal text-sm font-medium">{q.question}</p>
+                      </div>
+                      <div className="ml-5 space-y-1 mb-3 text-xs">
+                        <p className="text-red-600">あなたの回答：{q.options[answered]}</p>
+                        <p className="text-green-700 font-semibold">正解：{q.options[q.correctIndex]}</p>
+                      </div>
+                      <div className="ml-5 bg-white rounded-lg p-3 text-xs text-shin-mid leading-relaxed border border-red-100">
+                        <span className="font-semibold text-shin-charcoal">解説：</span>{q.explanation}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl p-6 shadow-2xl text-center">
+              <p className="text-4xl mb-2">🎉</p>
+              <p className="font-bold text-shin-charcoal">全問正解！</p>
+              <p className="text-shin-mid text-sm mt-1">AIリテラシーの基礎知識は完璧です。</p>
+            </div>
+          )}
+
+          {/* Correct answers */}
+          <div className="bg-white rounded-2xl p-6 shadow-2xl">
+            <h3 className="font-bold text-shin-charcoal mb-4">全問題の正解一覧</h3>
+            <div className="space-y-3">
+              {LITERACY_TEST.map((q, i) => {
+                const answered = finalResponse.testAnswers[i];
+                const isCorrect = answered === q.correctIndex;
+                return (
+                  <div key={i} className={`rounded-xl p-3 border ${isCorrect ? "bg-green-50 border-green-100" : "bg-red-50 border-red-100"}`}>
+                    <div className="flex items-start gap-2">
+                      <span className={`shrink-0 font-bold text-sm ${isCorrect ? "text-green-500" : "text-red-400"}`}>{isCorrect ? "✓" : "✗"}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-shin-mid mb-0.5">{q.chapter}</p>
+                        <p className="text-shin-charcoal text-sm">{q.question}</p>
+                        <p className="text-xs mt-1 font-semibold text-green-700">正解：{q.options[q.correctIndex]}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <p className="text-[#BCC8DE] text-xs text-center pb-4">
+            回答データは企業の診断レポートに活用されます。ご協力ありがとうございました。
           </p>
         </div>
       </div>
