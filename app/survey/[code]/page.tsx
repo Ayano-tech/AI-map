@@ -5,7 +5,7 @@ import { Company, SurveyResponse } from "@/lib/types";
 import { SURVEY_SECTIONS, LITERACY_TEST } from "@/lib/survey-data";
 import { calculateScores, calcWorkflowMetrics } from "@/lib/scoring";
 
-type Phase = "loading" | "intro" | "survey" | "test-intro" | "test" | "complete" | "error";
+type Phase = "loading" | "intro" | "survey" | "test-intro" | "test" | "email" | "complete" | "error";
 
 export default function SurveyPage() {
   const params = useParams();
@@ -18,6 +18,10 @@ export default function SurveyPage() {
   const [sectionIndex, setSectionIndex] = useState(0);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [surveyAnswers, setSurveyAnswers] = useState<Record<string, string | string[]>>({});
+
+  // Email state
+  const [email, setEmail] = useState("");
+  const [emailSubmitting, setEmailSubmitting] = useState(false);
 
   // Test state
   const [testIndex, setTestIndex] = useState(0);
@@ -120,16 +124,7 @@ export default function SurveyPage() {
         workflowMetrics,
       };
       setFinalResponse(resp);
-      setPhase("complete");
-
-      // Save in background
-      if (company?.sheetId) {
-        fetch("/api/responses", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ companySheetId: company.sheetId, response: resp }),
-        }).catch(console.error);
-      }
+      setPhase("email");
     }
   }
 
@@ -303,6 +298,79 @@ export default function SurveyPage() {
                 {sectionIndex === SURVEY_SECTIONS.length - 1 && questionIndex === visibleQuestions.length - 1 ? "テストへ進む →" : "次へ →"}
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Email input screen
+  if (phase === "email" && finalResponse) {
+    async function handleEmailSubmit(skipEmail = false) {
+      if (!finalResponse) return;
+      setEmailSubmitting(true);
+      const resp = skipEmail
+        ? finalResponse
+        : { ...finalResponse, basic: { ...finalResponse.basic, email } };
+      if (company?.sheetId) {
+        await fetch("/api/responses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ companySheetId: company.sheetId, response: resp }),
+        }).catch(console.error);
+      }
+      setFinalResponse(resp);
+      setPhase("complete");
+    }
+    const totalScore = finalResponse.testScore;
+    const totalMax = LITERACY_TEST.length;
+    const pct = Math.round((totalScore / totalMax) * 100);
+    const level = pct >= 80 ? 4 : pct >= 60 ? 3 : pct >= 40 ? 2 : 1;
+    const levelColors: Record<number, string> = { 1: "#D94F4F", 2: "#E8A838", 3: "#6AA3D8", 4: "#34A77B" };
+    const levelLabels: Record<number, string> = { 1: "入門レベル", 2: "基礎レベル", 3: "実践レベル", 4: "推進レベル" };
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 py-8" style={{ background: "linear-gradient(160deg, #1A2A3E 0%, #2A4A6E 50%, #6AA3D8 100%)" }}>
+        <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl">
+          <div className="text-center mb-6">
+            <p className="text-shin-mid text-sm mb-1">テスト完了</p>
+            <div className="inline-block mb-3">
+              <span className="text-4xl font-bold" style={{ color: levelColors[level] }}>{totalScore}</span>
+              <span className="text-shin-mid text-base"> / {totalMax}</span>
+            </div>
+            <div>
+              <span className="inline-block px-4 py-1 rounded-full text-sm font-semibold text-white" style={{ backgroundColor: levelColors[level] }}>
+                Lv.{level} {levelLabels[level]}
+              </span>
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <p className="font-semibold text-shin-charcoal mb-1">結果を記録しますか？</p>
+            <p className="text-shin-mid text-xs mb-4">メールアドレスを入力すると、あなた個人のスコアを後から確認できます。入力は任意です。</p>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="例：your@email.com"
+              className="w-full border-2 border-shin-accent rounded-xl px-4 py-3 focus:outline-none focus:border-shin-blue text-shin-charcoal"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <button
+              onClick={() => handleEmailSubmit(false)}
+              disabled={emailSubmitting || !email.includes("@")}
+              className="w-full bg-shin-blue text-white rounded-xl py-3 font-semibold disabled:opacity-40 hover:bg-shin-blue-dark transition-colors"
+            >
+              {emailSubmitting ? "送信中..." : "記録して結果を見る →"}
+            </button>
+            <button
+              onClick={() => handleEmailSubmit(true)}
+              disabled={emailSubmitting}
+              className="w-full text-shin-mid text-sm py-2 hover:text-shin-charcoal transition-colors"
+            >
+              メールアドレスなしで結果を見る
+            </button>
           </div>
         </div>
       </div>
