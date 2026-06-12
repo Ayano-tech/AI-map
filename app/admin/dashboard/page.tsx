@@ -21,18 +21,25 @@ function usageScore(r: ResponseData): number {
 function computePositioning(responses: ResponseData[]) {
   const points = responses.map(r => ({ x: (r.testScore / 20) * 100, y: usageScore(r) }));
   const counts = { promoter: 0, knowledge: 0, selfStyle: 0, notStarted: 0 };
-  points.forEach(p => {
+  const quadrants = points.map(p => {
     const highLiteracy = p.x >= 50;
     const highUsage = p.y >= 50;
-    if (highLiteracy && highUsage) counts.promoter++;
-    else if (highLiteracy && !highUsage) counts.knowledge++;
-    else if (!highLiteracy && highUsage) counts.selfStyle++;
-    else counts.notStarted++;
+    if (highLiteracy && highUsage) { counts.promoter++; return "promoter" as const; }
+    if (highLiteracy && !highUsage) { counts.knowledge++; return "knowledge" as const; }
+    if (!highLiteracy && highUsage) { counts.selfStyle++; return "selfStyle" as const; }
+    counts.notStarted++; return "notStarted" as const;
   });
   const total = points.length;
   const pct = (n: number) => total > 0 ? Math.round((n / total) * 100) : 0;
-  return { points, counts, total, pct };
+  return { points, counts, quadrants, total, pct };
 }
+
+const QUADRANT_INFO = {
+  promoter: { label: "推進層", badge: "bg-green-100 text-green-700" },
+  knowledge: { label: "知識先行層", badge: "bg-blue-100 text-blue-700" },
+  selfStyle: { label: "我流活用層", badge: "bg-yellow-100 text-yellow-700" },
+  notStarted: { label: "未着手層", badge: "bg-gray-100 text-shin-mid" },
+} as const;
 
 // "1〜2ヶ月" -> [1,2], "6ヶ月〜" -> [6,12], "3ヶ月" -> [0,3]
 function parseDuration(duration: string): [number, number] {
@@ -312,7 +319,7 @@ export default function AdminDashboard() {
               )}
 
               {responses.length > 0 && (() => {
-                const { points, counts, pct } = computePositioning(responses);
+                const { points, counts, quadrants, pct } = computePositioning(responses);
                 return (
                   <div>
                     <h4 className="font-semibold mb-1">AI活用ポジショニングマップ</h4>
@@ -341,6 +348,23 @@ export default function AdminDashboard() {
                         <div className="flex justify-between items-center bg-yellow-50 rounded-lg px-3 py-2"><span className="font-semibold text-yellow-700">我流活用層（実践先行・知識不足）</span><span className="font-bold">{counts.selfStyle}名（{pct(counts.selfStyle)}%）</span></div>
                         <div className="flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2"><span className="font-semibold text-shin-mid">未着手層（知識・実践とも低い）</span><span className="font-bold">{counts.notStarted}名（{pct(counts.notStarted)}%）</span></div>
                       </div>
+                    </div>
+                    <div className="mt-4 overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead><tr className="bg-shin-blue-pale"><th className="px-3 py-2 text-left">年代</th><th className="px-3 py-2 text-left">職種</th><th className="px-3 py-2 text-center">リテラシースコア</th><th className="px-3 py-2 text-left">AI利用状況</th><th className="px-3 py-2 text-left">分類</th></tr></thead>
+                        <tbody>{responses.map((r, i) => {
+                          const q = QUADRANT_INFO[quadrants[i]];
+                          return (
+                            <tr key={i} className="border-b border-shin-accent">
+                              <td className="px-3 py-2">{r.basic?.["Q0-1"] || "-"}</td>
+                              <td className="px-3 py-2">{r.basic?.["Q0-2"] || "-"}</td>
+                              <td className="px-3 py-2 text-center font-bold">{r.testScore}/20</td>
+                              <td className="px-3 py-2">{(r.surveyAnswers?.["Q7-2"] as string) || "-"}</td>
+                              <td className="px-3 py-2"><span className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap ${q.badge}`}>{q.label}</span></td>
+                            </tr>
+                          );
+                        })}</tbody>
+                      </table>
                     </div>
                   </div>
                 );
