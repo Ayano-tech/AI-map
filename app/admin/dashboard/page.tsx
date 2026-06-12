@@ -18,8 +18,27 @@ function usageScore(r: ResponseData): number {
   return 15;
 }
 
+// Percentile rank (0-100) for each value, tied values share the average rank
+function percentileRanks(values: number[]): number[] {
+  const n = values.length;
+  if (n <= 1) return values.map(() => 50);
+  const sorted = values.map((v, i) => ({ v, i })).sort((a, b) => a.v - b.v);
+  const ranks = new Array(n).fill(0);
+  let i = 0;
+  while (i < n) {
+    let j = i;
+    while (j + 1 < n && sorted[j + 1].v === sorted[i].v) j++;
+    const avgRank = (i + j) / 2;
+    for (let k = i; k <= j; k++) ranks[sorted[k].i] = avgRank;
+    i = j + 1;
+  }
+  return ranks.map(r => (r / (n - 1)) * 100);
+}
+
 function computePositioning(responses: ResponseData[]) {
-  const points = responses.map(r => ({ x: (r.testScore / 20) * 100, y: usageScore(r) }));
+  const literacyRanks = percentileRanks(responses.map(r => r.testScore));
+  const usageRanks = percentileRanks(responses.map(r => usageScore(r)));
+  const points = responses.map((_, i) => ({ x: literacyRanks[i], y: usageRanks[i] }));
   const counts = { promoter: 0, knowledge: 0, selfStyle: 0, notStarted: 0 };
   const quadrants = points.map(p => {
     const highLiteracy = p.x >= 50;
@@ -323,11 +342,11 @@ export default function AdminDashboard() {
                 return (
                   <div>
                     <h4 className="font-semibold mb-1">AI活用ポジショニングマップ</h4>
-                    <p className="text-shin-mid text-xs mb-3">縦軸：AIの活用頻度（実践度）／横軸：AIリテラシー（知識・スキル）。回答者ごとの現在地をプロットし、活用定着に向けた打ち手の方向性を確認できます。</p>
+                    <p className="text-shin-mid text-xs mb-3">縦軸：AIの活用頻度（実践度）／横軸：AIリテラシー（知識・スキル）。各回答者の社内での相対的な順位に基づき現在地をプロットし、活用定着に向けた打ち手の方向性を確認できます。</p>
                     <div className="flex flex-col md:flex-row gap-4 items-start">
                       <div className="grid grid-cols-[20px_1fr] grid-rows-[1fr_20px] gap-2 w-full max-w-sm">
                         <div className="row-start-1 col-start-1 flex items-center justify-center">
-                          <span className="-rotate-90 whitespace-nowrap text-xs text-shin-light">活用頻度 高 ↑</span>
+                          <span className="-rotate-90 whitespace-nowrap text-xs text-shin-light">活用頻度 高 ↑（社内相対）</span>
                         </div>
                         <div className="row-start-1 col-start-2 relative aspect-square rounded-xl border border-shin-accent overflow-hidden">
                           <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
@@ -340,7 +359,7 @@ export default function AdminDashboard() {
                             <div key={i} className="absolute w-3 h-3 rounded-full bg-shin-blue border-2 border-white shadow" style={{ left: `calc(${p.x}% - 6px)`, top: `calc(${100 - p.y}% - 6px)` }} />
                           ))}
                         </div>
-                        <div className="row-start-2 col-start-2 text-center text-xs text-shin-light">AIリテラシー 高 →</div>
+                        <div className="row-start-2 col-start-2 text-center text-xs text-shin-light">AIリテラシー 高 →（社内相対）</div>
                       </div>
                       <div className="flex-1 space-y-2 text-sm w-full">
                         <div className="flex justify-between items-center bg-green-50 rounded-lg px-3 py-2"><span className="font-semibold text-green-700">推進層（知識・実践とも高い）</span><span className="font-bold">{counts.promoter}名（{pct(counts.promoter)}%）</span></div>
