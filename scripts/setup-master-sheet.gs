@@ -34,6 +34,42 @@ function addIsDemoColumn() {
   }
 }
 
+/**
+ * 既存のマスタースプレッドシートに企業詳細・他社比較用の列を追加する移行用関数
+ * 使い方: 既存のマスタースプレッドシートを開き、この関数を実行する
+ */
+function addCompanyDetailColumns() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("companies");
+  if (!sheet) return;
+
+  const headers = [
+    "annualRevenueRange", "itInvestmentLevel", "currentItTools", "hasDxPerson", "aiInitiativeStatus",
+    "responseCount", "avgTestScore", "avgUsageScore", "promoterPct", "knowledgePct", "selfStylePct", "notStartedPct", "summaryUpdatedAt",
+  ];
+  const startCol = 10; // J列〜
+  const lastRow = sheet.getLastRow();
+
+  headers.forEach((h, idx) => {
+    const col = startCol + idx;
+    if (sheet.getRange(1, col).getValue() !== h) {
+      sheet.getRange(1, col).setValue(h);
+      sheet.getRange(1, col).setBackground("#1A2A3E").setFontColor("#FFFFFF").setFontWeight("bold").setHorizontalAlignment("center");
+    }
+  });
+
+  // 既存行の集計列が空欄であれば 0 を設定
+  if (lastRow > 1) {
+    const numericCols = [15, 16, 17, 18, 19, 20, 21]; // responseCount〜notStartedPct
+    numericCols.forEach(col => {
+      const range = sheet.getRange(2, col, lastRow - 1, 1);
+      const values = range.getValues();
+      const filled = values.map(([v]) => [v === "" || v === null ? 0 : v]);
+      range.setValues(filled);
+    });
+  }
+}
+
 function setupMasterSpreadsheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   ss.setName("AI活用診断_マスター管理");
@@ -53,12 +89,16 @@ function setupMasterSpreadsheet() {
 
   // ヘッダー行
   const companyHeaders = [
-    ["id", "name", "industry", "employeeCount", "code", "createdAt", "sheetId", "sheetUrl", "isDemo"]
+    [
+      "id", "name", "industry", "employeeCount", "code", "createdAt", "sheetId", "sheetUrl", "isDemo",
+      "annualRevenueRange", "itInvestmentLevel", "currentItTools", "hasDxPerson", "aiInitiativeStatus",
+      "responseCount", "avgTestScore", "avgUsageScore", "promoterPct", "knowledgePct", "selfStylePct", "notStartedPct", "summaryUpdatedAt",
+    ]
   ];
-  companiesSheet.getRange("A1:I1").setValues(companyHeaders);
+  companiesSheet.getRange("A1:V1").setValues(companyHeaders);
 
   // ヘッダーのスタイル
-  const companyHeaderRange = companiesSheet.getRange("A1:I1");
+  const companyHeaderRange = companiesSheet.getRange("A1:V1");
   companyHeaderRange.setBackground("#1A2A3E");
   companyHeaderRange.setFontColor("#FFFFFF");
   companyHeaderRange.setFontWeight("bold");
@@ -74,6 +114,19 @@ function setupMasterSpreadsheet() {
   companiesSheet.setColumnWidth(7, 200);  // sheetId
   companiesSheet.setColumnWidth(8, 300);  // sheetUrl
   companiesSheet.setColumnWidth(9, 90);   // isDemo
+  companiesSheet.setColumnWidth(10, 110); // annualRevenueRange
+  companiesSheet.setColumnWidth(11, 140); // itInvestmentLevel
+  companiesSheet.setColumnWidth(12, 200); // currentItTools
+  companiesSheet.setColumnWidth(13, 110); // hasDxPerson
+  companiesSheet.setColumnWidth(14, 160); // aiInitiativeStatus
+  companiesSheet.setColumnWidth(15, 100); // responseCount
+  companiesSheet.setColumnWidth(16, 100); // avgTestScore
+  companiesSheet.setColumnWidth(17, 100); // avgUsageScore
+  companiesSheet.setColumnWidth(18, 90);  // promoterPct
+  companiesSheet.setColumnWidth(19, 90);  // knowledgePct
+  companiesSheet.setColumnWidth(20, 90);  // selfStylePct
+  companiesSheet.setColumnWidth(21, 90);  // notStartedPct
+  companiesSheet.setColumnWidth(22, 160); // summaryUpdatedAt
 
   // 列固定（ヘッダー行を凍結）
   companiesSheet.setFrozenRows(1);
@@ -109,7 +162,7 @@ function setupMasterSpreadsheet() {
     ["", "", ""],
     ["【企業専用スプレッドシートのタブ構成】", "", ""],
     ["タブ名", "内容", ""],
-    ["企業マスター", "企業属性情報（設立年代・年商・IT投資姿勢等）", ""],
+    ["企業マスター", "企業属性情報（年商・IT投資姿勢等）", ""],
     ["回答データ", "全回答の生データ（JSONを含む）", ""],
     ["業務実態スコア", "業務フロー分析の数値化スコア", ""],
     ["AIリテラシー", "4Dフレームワークスコア（Delegation/Description/Discernment/Diligence）", ""],

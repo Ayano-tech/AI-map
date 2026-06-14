@@ -123,7 +123,7 @@ export default function AdminDashboard() {
   const [origin, setOrigin] = useState("");
   const [addForm, setAddForm] = useState({
     name: "", industry: "", employeeCount: "",
-    foundingYearRange: "", annualRevenueRange: "", itInvestmentLevel: "",
+    annualRevenueRange: "", itInvestmentLevel: "",
     currentItTools: [] as string[], hasDxPerson: "", aiInitiativeStatus: "",
     isDemo: false,
   });
@@ -131,6 +131,14 @@ export default function AdminDashboard() {
   const [adding, setAdding] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [responses, setResponses] = useState<ResponseData[]>([]);
+  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: "", industry: "", employeeCount: "",
+    annualRevenueRange: "", itInvestmentLevel: "",
+    currentItTools: [] as string[], hasDxPerson: "", aiInitiativeStatus: "",
+    isDemo: false,
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
   const [report, setReport] = useState<string | null>(null);
   const [generatingReport, setGeneratingReport] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
@@ -166,11 +174,45 @@ export default function AdminDashboard() {
         body: JSON.stringify(addForm),
       });
       if (res.ok) {
-        setAddForm({ name: "", industry: "", employeeCount: "", foundingYearRange: "", annualRevenueRange: "", itInvestmentLevel: "", currentItTools: [], hasDxPerson: "", aiInitiativeStatus: "", isDemo: false });
+        setAddForm({ name: "", industry: "", employeeCount: "", annualRevenueRange: "", itInvestmentLevel: "", currentItTools: [], hasDxPerson: "", aiInitiativeStatus: "", isDemo: false });
         fetchCompanies();
       }
     } finally {
       setAdding(false);
+    }
+  }
+
+  function handleStartEdit(company: Company) {
+    setEditingCompany(company);
+    setEditForm({
+      name: company.name,
+      industry: company.industry,
+      employeeCount: company.employeeCount,
+      annualRevenueRange: company.annualRevenueRange || "",
+      itInvestmentLevel: company.itInvestmentLevel || "",
+      currentItTools: company.currentItTools || [],
+      hasDxPerson: company.hasDxPerson || "",
+      aiInitiativeStatus: company.aiInitiativeStatus || "",
+      isDemo: company.isDemo,
+    });
+  }
+
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingCompany) return;
+    setSavingEdit(true);
+    try {
+      const res = await fetch(`/api/companies/${editingCompany.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      if (res.ok) {
+        setEditingCompany(null);
+        fetchCompanies();
+      }
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -190,6 +232,27 @@ export default function AdminDashboard() {
       setResponses([]);
     }
   }
+
+  // 他社比較用に集計サマリーをマスターシートへ保存
+  useEffect(() => {
+    if (!selectedCompany || responses.length === 0) return;
+    const { counts, total, pct } = computePositioning(responses);
+    const avgTestScore = responses.reduce((s, r) => s + r.testScore, 0) / total;
+    const avgUsageScore = responses.reduce((s, r) => s + usageScore(r), 0) / total;
+    fetch(`/api/companies/${selectedCompany.id}/summary`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        responseCount: total,
+        avgTestScore: Math.round(avgTestScore * 10) / 10,
+        avgUsageScore: Math.round(avgUsageScore * 10) / 10,
+        promoterPct: pct(counts.promoter),
+        knowledgePct: pct(counts.knowledge),
+        selfStylePct: pct(counts.selfStyle),
+        notStartedPct: pct(counts.notStarted),
+      }),
+    }).then(() => fetchCompanies()).catch(() => {});
+  }, [selectedCompany, responses, fetchCompanies]);
 
   async function handleGenerateReport() {
     if (!selectedCompany || responses.length === 0) return;
@@ -289,10 +352,6 @@ export default function AdminDashboard() {
               <input value={addForm.employeeCount} onChange={e => setAddForm(p => ({ ...p, employeeCount: e.target.value }))} placeholder="従業員数" className="border border-shin-accent rounded-lg px-4 py-2 w-32 focus:outline-none focus:border-shin-blue" />
             </div>
             <div className="flex flex-wrap gap-3">
-              <select value={addForm.foundingYearRange} onChange={e => setAddForm(p => ({ ...p, foundingYearRange: e.target.value }))} className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[140px] focus:outline-none focus:border-shin-blue text-shin-charcoal">
-                <option value="">設立年代</option>
-                {["〜1990年代","2000年代","2010年代","2020年以降"].map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
               <select value={addForm.annualRevenueRange} onChange={e => setAddForm(p => ({ ...p, annualRevenueRange: e.target.value }))} className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[140px] focus:outline-none focus:border-shin-blue text-shin-charcoal">
                 <option value="">年商規模</option>
                 {["1億円未満","1〜5億円","5〜10億円","10億円以上","非公開"].map(o => <option key={o} value={o}>{o}</option>)}
@@ -364,6 +423,7 @@ export default function AdminDashboard() {
                     <CopyButton text={`${origin}/survey/${company.code}`} label="アンケートURL" />
                     <CopyButton text={`${origin}/report/${company.code}`} label="レポートURL" />
                     <button onClick={() => handleSelectCompany(company)} className="bg-shin-blue text-white rounded-lg px-4 py-1.5 text-sm font-semibold hover:bg-shin-blue-dark transition-colors">詳細</button>
+                    <button onClick={() => handleStartEdit(company)} className="border border-shin-accent text-shin-charcoal rounded-lg px-4 py-1.5 text-sm font-semibold hover:border-shin-blue hover:text-shin-blue transition-colors">編集</button>
                     <button onClick={() => handleDelete(company.id)} className="text-red-400 hover:text-red-600 text-sm">削除</button>
                   </div>
                 </div>
@@ -524,6 +584,53 @@ export default function AdminDashboard() {
                                 </tr>
                               )}
                             </Fragment>
+                          );
+                        })}</tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {responses.length > 0 && (() => {
+                const others = companies.filter(c => !c.isDemo && c.id !== selectedCompany.id && (c.responseCount || 0) > 0);
+                if (others.length === 0) {
+                  return (
+                    <div className="bg-gray-50 rounded-xl p-4 text-xs text-shin-mid">
+                      他社比較（ベンチマーク）：他社の診断データが蓄積されると、ここに業界内での相対比較が表示されます。
+                    </div>
+                  );
+                }
+                const { counts, total, pct } = computePositioning(responses);
+                const thisAvgTestScore = responses.reduce((s, r) => s + r.testScore, 0) / total;
+                const thisAvgUsageScore = responses.reduce((s, r) => s + usageScore(r), 0) / total;
+                const avgOf = (key: "avgTestScore" | "avgUsageScore" | "promoterPct" | "knowledgePct" | "selfStylePct" | "notStartedPct") =>
+                  others.reduce((s, c) => s + (c[key] || 0), 0) / others.length;
+                const rows: Array<{ label: string; mine: number; others: number; unit: string }> = [
+                  { label: "リテラシースコア（平均）", mine: Math.round(thisAvgTestScore * 10) / 10, others: Math.round(avgOf("avgTestScore") * 10) / 10, unit: "/20" },
+                  { label: "AI活用度スコア（平均）", mine: Math.round(thisAvgUsageScore * 10) / 10, others: Math.round(avgOf("avgUsageScore") * 10) / 10, unit: "/85" },
+                  { label: "推進層比率", mine: pct(counts.promoter), others: Math.round(avgOf("promoterPct")), unit: "%" },
+                  { label: "知識先行層比率", mine: pct(counts.knowledge), others: Math.round(avgOf("knowledgePct")), unit: "%" },
+                  { label: "我流活用層比率", mine: pct(counts.selfStyle), others: Math.round(avgOf("selfStylePct")), unit: "%" },
+                  { label: "未着手層比率", mine: pct(counts.notStarted), others: Math.round(avgOf("notStartedPct")), unit: "%" },
+                ];
+                return (
+                  <div>
+                    <h4 className="font-semibold mb-1">他社比較（ベンチマーク）</h4>
+                    <p className="text-shin-mid text-xs mb-3">診断済みの他社（{others.length}社・デモ除く）の平均値と比較した、貴社の位置づけです。</p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead><tr className="bg-shin-blue-pale"><th className="px-3 py-2 text-left">指標</th><th className="px-3 py-2 text-center">貴社</th><th className="px-3 py-2 text-center">他社平均</th><th className="px-3 py-2 text-center">差分</th></tr></thead>
+                        <tbody>{rows.map(row => {
+                          const diff = Math.round((row.mine - row.others) * 10) / 10;
+                          const diffColor = diff > 0 ? "text-green-700" : diff < 0 ? "text-red-600" : "text-shin-mid";
+                          return (
+                            <tr key={row.label} className="border-b border-shin-accent">
+                              <td className="px-3 py-2">{row.label}</td>
+                              <td className="px-3 py-2 text-center font-bold">{row.mine}{row.unit}</td>
+                              <td className="px-3 py-2 text-center text-shin-mid">{row.others}{row.unit}</td>
+                              <td className={`px-3 py-2 text-center font-semibold ${diffColor}`}>{diff > 0 ? "+" : ""}{diff}{row.unit}</td>
+                            </tr>
                           );
                         })}</tbody>
                       </table>
@@ -707,6 +814,67 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingCompany && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-shin-accent flex justify-between items-center sticky top-0 bg-white z-10">
+              <h3 className="font-bold text-shin-charcoal text-lg">{editingCompany.name} を編集</h3>
+              <button onClick={() => setEditingCompany(null)} className="text-shin-mid hover:text-shin-charcoal text-2xl">×</button>
+            </div>
+            <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
+              <div className="flex flex-wrap gap-3">
+                <input required value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} placeholder="企業名 *" className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[160px] focus:outline-none focus:border-shin-blue" />
+                <input value={editForm.industry} onChange={e => setEditForm(p => ({ ...p, industry: e.target.value }))} placeholder="業種" className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[120px] focus:outline-none focus:border-shin-blue" />
+                <input value={editForm.employeeCount} onChange={e => setEditForm(p => ({ ...p, employeeCount: e.target.value }))} placeholder="従業員数" className="border border-shin-accent rounded-lg px-4 py-2 w-32 focus:outline-none focus:border-shin-blue" />
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <select value={editForm.annualRevenueRange} onChange={e => setEditForm(p => ({ ...p, annualRevenueRange: e.target.value }))} className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[140px] focus:outline-none focus:border-shin-blue text-shin-charcoal">
+                  <option value="">年商規模</option>
+                  {["1億円未満","1〜5億円","5〜10億円","10億円以上","非公開"].map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+                <select value={editForm.itInvestmentLevel} onChange={e => setEditForm(p => ({ ...p, itInvestmentLevel: e.target.value }))} className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[180px] focus:outline-none focus:border-shin-blue text-shin-charcoal">
+                  <option value="">IT投資姿勢</option>
+                  {["積極的に投資している","必要に応じて導入している","コストを抑えたい","ほぼ投資していない"].map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+                <select value={editForm.hasDxPerson} onChange={e => setEditForm(p => ({ ...p, hasDxPerson: e.target.value }))} className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[140px] focus:outline-none focus:border-shin-blue text-shin-charcoal">
+                  <option value="">DX担当者</option>
+                  {["専任担当者がいる","兼任でいる","いない"].map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+                <select value={editForm.aiInitiativeStatus} onChange={e => setEditForm(p => ({ ...p, aiInitiativeStatus: e.target.value }))} className="border border-shin-accent rounded-lg px-4 py-2 flex-1 min-w-[200px] focus:outline-none focus:border-shin-blue text-shin-charcoal">
+                  <option value="">AI導入状況</option>
+                  {["すでに組織的に活用中","試験的に導入している","個人レベルで使っている人がいる","まだ誰も使っていない"].map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div>
+                <p className="text-shin-mid text-xs mb-2">現在使っているITツール（複数選択可）</p>
+                <div className="flex flex-wrap gap-2">
+                  {["会計・財務ソフト","CRM・SFA","チャット・コミュニケーションツール","プロジェクト管理ツール","電子署名・文書管理","特にデジタル化していない"].map(tool => {
+                    const checked = editForm.currentItTools.includes(tool);
+                    return (
+                      <button key={tool} type="button" onClick={() => setEditForm(p => ({ ...p, currentItTools: checked ? p.currentItTools.filter(t => t !== tool) : [...p.currentItTools, tool] }))}
+                        className={`px-3 py-1 rounded-full text-xs border-2 transition-colors ${checked ? "bg-shin-blue text-white border-shin-blue" : "bg-white text-shin-charcoal border-shin-accent hover:border-shin-blue"}`}>
+                        {tool}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <label className="flex items-center gap-2 text-sm text-shin-mid cursor-pointer">
+                  <input type="checkbox" checked={editForm.isDemo} onChange={e => setEditForm(p => ({ ...p, isDemo: e.target.checked }))} className="accent-shin-blue" />
+                  デモ用データとして登録（本番データと区別されます）
+                </label>
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setEditingCompany(null)} className="border border-shin-accent text-shin-charcoal rounded-lg px-6 py-2 font-semibold hover:border-shin-blue transition-colors">キャンセル</button>
+                  <button type="submit" disabled={savingEdit} className="bg-shin-blue text-white rounded-lg px-6 py-2 font-semibold disabled:opacity-50 hover:bg-shin-blue-dark transition-colors">{savingEdit ? "保存中..." : "保存"}</button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}

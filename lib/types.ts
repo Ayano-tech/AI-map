@@ -7,13 +7,21 @@ export interface Company {
   createdAt: string;
   sheetId: string | null;
   sheetUrl: string | null;
-  foundingYearRange: string;
   annualRevenueRange: string;
   itInvestmentLevel: string;
   currentItTools: string[];
   hasDxPerson: string;
   aiInitiativeStatus: string;
   isDemo: boolean;
+  // 他社比較用の集計サマリー（診断レポート生成時に更新）
+  responseCount?: number;
+  avgTestScore?: number;
+  avgUsageScore?: number;
+  promoterPct?: number;
+  knowledgePct?: number;
+  selfStylePct?: number;
+  notStartedPct?: number;
+  summaryUpdatedAt?: string | null;
 }
 
 export interface SurveyQuestion {
