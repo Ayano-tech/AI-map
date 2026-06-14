@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { Company } from "@/lib/types";
+import { SURVEY_SECTIONS, LITERACY_TEST } from "@/lib/survey-data";
 
 interface ResponseData {
   testScore: number;
@@ -9,6 +10,7 @@ interface ResponseData {
   chapterScores: Record<string, { score: number; max: number; rate: number }>;
   submittedAt: string;
   surveyAnswers: Record<string, string | string[]>;
+  testAnswers?: Record<number, number>;
 }
 
 function usageScore(r: ResponseData): number {
@@ -60,6 +62,37 @@ const QUADRANT_INFO = {
   notStarted: { label: "未着手層", badge: "bg-gray-100 text-shin-mid" },
 } as const;
 
+type QuadrantKey = keyof typeof QUADRANT_INFO;
+
+// Why this respondent ended up in this quadrant, based on their inputs
+function explainPosition(r: ResponseData, quadrant: QuadrantKey): string {
+  const usage = (r.surveyAnswers?.["Q7-2"] as string) || "未回答";
+  const chapters = Object.entries(r.chapterScores || {}).filter(([, v]) => v && v.max > 0);
+  let chapterNote = "";
+  if (chapters.length > 0) {
+    const sorted = [...chapters].sort((a, b) => b[1].rate - a[1].rate);
+    const strongest = sorted[0];
+    const weakest = sorted[sorted.length - 1];
+    if (strongest[0] !== weakest[0]) {
+      chapterNote = `クイズでは「${strongest[0]}」分野の正答率が高く（${Math.round(strongest[1].rate * 100)}%）、「${weakest[0]}」分野が弱点（${Math.round(weakest[1].rate * 100)}%）です。`;
+    } else {
+      chapterNote = `クイズは全分野でほぼ同程度の正答率（約${Math.round(strongest[1].rate * 100)}%）でした。`;
+    }
+  }
+
+  switch (quadrant) {
+    case "promoter":
+      return `リテラシースコアが社内上位かつ、AIを「${usage}」と回答しており、知識と実践の両方が伴っています。${chapterNote}今後は周囲への展開役（推進役）を担える人材です。`;
+    case "knowledge":
+      return `リテラシースコアは社内上位ですが、AI利用は「${usage}」と回答しており、知識を実践に結びつけられていません。${chapterNote}業務での具体的な活用シーンを提示することで、知識先行層から推進層への移行が期待できます。`;
+    case "selfStyle":
+      return `AI利用は「${usage}」と回答し活用頻度は社内上位ですが、リテラシースコアは社内では低めです。${chapterNote}実践は先行しているものの、出力の評価（Discernment）やリスク管理（Diligence）の理解が不足していると、誤った使い方が定着するリスクがあります。`;
+    case "notStarted":
+    default:
+      return `リテラシースコア・AI利用頻度（「${usage}」）ともに社内では低めです。${chapterNote}まずは基礎研修などで「触れる」機会を作ることが最初のステップになります。`;
+  }
+}
+
 // "1〜2ヶ月" -> [1,2], "6ヶ月〜" -> [6,12], "3ヶ月" -> [0,3]
 function parseDuration(duration: string): [number, number] {
   const nums = (duration.match(/\d+/g) || []).map(Number);
@@ -101,6 +134,8 @@ export default function AdminDashboard() {
   const [report, setReport] = useState<string | null>(null);
   const [generatingReport, setGeneratingReport] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
+  const [expandedRespondent, setExpandedRespondent] = useState<number | null>(null);
+  const [showIntro, setShowIntro] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined" && sessionStorage.getItem("admin_auth") !== "true") {
@@ -194,6 +229,56 @@ export default function AdminDashboard() {
       </header>
 
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+        {/* Getting Started */}
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <button onClick={() => setShowIntro(v => !v)} className="w-full px-6 py-4 flex justify-between items-center text-left hover:bg-shin-blue-pale transition-colors">
+            <div>
+              <h2 className="text-shin-charcoal font-semibold">はじめに：この診断でわかること</h2>
+              <p className="text-shin-mid text-xs mt-0.5">管理画面でできること、診断結果の見方をまとめています</p>
+            </div>
+            <span className="text-shin-mid text-xl">{showIntro ? "▲" : "▼"}</span>
+          </button>
+          {showIntro && (
+            <div className="px-6 pb-6 space-y-5 text-sm border-t border-shin-accent pt-4">
+              <div>
+                <p className="font-semibold text-shin-charcoal mb-1">1. AI活用ポジショニングマップ（現在地の可視化）</p>
+                <p className="text-shin-mid text-xs leading-relaxed">
+                  各従業員の「AIリテラシー（クイズスコア）」×「AI活用頻度（Q7-2）」を社内の相対順位で4象限にプロットします。
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                  <div className="bg-green-50 rounded-lg p-2 text-xs"><span className="font-semibold text-green-700">推進層</span><p className="text-shin-mid mt-0.5">知識・実践ともに高い。推進役の候補。</p></div>
+                  <div className="bg-blue-50 rounded-lg p-2 text-xs"><span className="font-semibold text-blue-700">知識先行層</span><p className="text-shin-mid mt-0.5">知識はあるが実践が進んでいない。</p></div>
+                  <div className="bg-yellow-50 rounded-lg p-2 text-xs"><span className="font-semibold text-yellow-700">我流活用層</span><p className="text-shin-mid mt-0.5">実践は先行しているが知識が不足。</p></div>
+                  <div className="bg-gray-50 rounded-lg p-2 text-xs"><span className="font-semibold text-shin-mid">未着手層</span><p className="text-shin-mid mt-0.5">知識・実践ともにこれから。</p></div>
+                </div>
+                <p className="text-shin-light text-xs mt-2">企業詳細画面の「回答を見る」から、各回答者がなぜそのポジションになったかの理由・全設問の回答・クイズの正誤を個別に確認できます。</p>
+              </div>
+              <div>
+                <p className="font-semibold text-shin-charcoal mb-1">2. 診断レポート（AI活用機会の整理）</p>
+                <p className="text-shin-mid text-xs leading-relaxed mb-2">
+                  「診断レポートを生成」ボタンを押すと、回答データをもとにAIが以下を整理します。
+                </p>
+                <ul className="text-shin-mid text-xs space-y-1 list-disc pl-4">
+                  <li><span className="font-semibold text-shin-charcoal">エグゼクティブサマリー / Key Insight</span>：現状の総括と最も重要な気づき</li>
+                  <li><span className="font-semibold text-green-700">Quick Win</span>：すぐにAI化できる定型業務とその効果</li>
+                  <li><span className="font-semibold text-blue-700">Human-in-the-Loop</span>：AIを使いつつ人の確認が必要な業務</li>
+                  <li><span className="font-semibold text-shin-mid">Not Recommended</span>：現時点でAI化を推奨しない業務</li>
+                  <li><span className="font-semibold text-shin-charcoal">推進候補者（Promoter Candidates）</span>：社内で活用を広める役割に適した人材</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-semibold text-shin-charcoal mb-1">3. 実行ロードマップ（次の一手）</p>
+                <p className="text-shin-mid text-xs leading-relaxed">
+                  ポジショニングマップの分布をもとに、Phase 1〜3のガントチャートと「現状 → 各フェーズ完了後」の変化イメージを表示します。各フェーズにはSHINの提供サービス（研修・コンサルティング・受託開発）が紐付き、提案へそのままつなげられます。
+                </p>
+              </div>
+              <div className="bg-shin-blue-pale rounded-xl p-3 text-xs text-shin-charcoal">
+                <span className="font-semibold">使い方の流れ：</span> ① 企業を追加 → ② アンケートURLを配布 → ③ 回答が集まったら「詳細」を開く → ④ ポジショニングマップ・個別回答を確認 → ⑤ 診断レポートを生成してロードマップを確認
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Add Company */}
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <h2 className="text-shin-charcoal font-semibold mb-4">企業を追加</h2>
@@ -370,17 +455,75 @@ export default function AdminDashboard() {
                     </div>
                     <div className="mt-4 overflow-x-auto">
                       <table className="w-full text-sm">
-                        <thead><tr className="bg-shin-blue-pale"><th className="px-3 py-2 text-left">年代</th><th className="px-3 py-2 text-left">職種</th><th className="px-3 py-2 text-center">リテラシースコア</th><th className="px-3 py-2 text-left">AI利用状況</th><th className="px-3 py-2 text-left">分類</th></tr></thead>
+                        <thead><tr className="bg-shin-blue-pale"><th className="px-3 py-2 text-left">年代</th><th className="px-3 py-2 text-left">職種</th><th className="px-3 py-2 text-center">リテラシースコア</th><th className="px-3 py-2 text-left">AI利用状況</th><th className="px-3 py-2 text-left">分類</th><th className="px-3 py-2 text-center">詳細</th></tr></thead>
                         <tbody>{responses.map((r, i) => {
                           const q = QUADRANT_INFO[quadrants[i]];
+                          const expanded = expandedRespondent === i;
                           return (
-                            <tr key={i} className="border-b border-shin-accent">
-                              <td className="px-3 py-2">{r.basic?.["Q0-1"] || "-"}</td>
-                              <td className="px-3 py-2">{r.basic?.["Q0-2"] || "-"}</td>
-                              <td className="px-3 py-2 text-center font-bold">{r.testScore}/20</td>
-                              <td className="px-3 py-2">{(r.surveyAnswers?.["Q7-2"] as string) || "-"}</td>
-                              <td className="px-3 py-2"><span className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap ${q.badge}`}>{q.label}</span></td>
-                            </tr>
+                            <Fragment key={i}>
+                              <tr className="border-b border-shin-accent">
+                                <td className="px-3 py-2">{r.basic?.["Q0-1"] || "-"}</td>
+                                <td className="px-3 py-2">{r.basic?.["Q0-2"] || "-"}</td>
+                                <td className="px-3 py-2 text-center font-bold">{r.testScore}/20</td>
+                                <td className="px-3 py-2">{(r.surveyAnswers?.["Q7-2"] as string) || "-"}</td>
+                                <td className="px-3 py-2"><span className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap ${q.badge}`}>{q.label}</span></td>
+                                <td className="px-3 py-2 text-center">
+                                  <button onClick={() => setExpandedRespondent(expanded ? null : i)} className="text-xs text-shin-blue hover:underline whitespace-nowrap">
+                                    {expanded ? "閉じる ▲" : "回答を見る ▼"}
+                                  </button>
+                                </td>
+                              </tr>
+                              {expanded && (
+                                <tr className="border-b border-shin-accent bg-shin-blue-pale/40">
+                                  <td colSpan={6} className="px-3 py-4">
+                                    <div className="space-y-4">
+                                      <div className="bg-white border border-shin-accent rounded-xl p-3">
+                                        <p className="text-xs font-semibold text-shin-charcoal mb-1">この回答者が「{q.label}」と判定された理由</p>
+                                        <p className="text-xs text-shin-mid leading-relaxed">{explainPosition(r, quadrants[i])}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs font-semibold text-shin-charcoal mb-2">アンケート回答内容</p>
+                                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                                          {SURVEY_SECTIONS.flatMap(section => section.questions).map(qn => {
+                                            const ans = r.surveyAnswers?.[qn.id] ?? r.basic?.[qn.id];
+                                            if (ans === undefined) return null;
+                                            const ansText = Array.isArray(ans) ? (ans.length > 0 ? ans.join("、") : "（未回答）") : (ans || "（未回答）");
+                                            return (
+                                              <div key={qn.id} className="text-xs border-b border-shin-accent/60 pb-1">
+                                                <p className="text-shin-mid">{qn.text}</p>
+                                                <p className="text-shin-charcoal font-medium">{ansText}</p>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs font-semibold text-shin-charcoal mb-2">リテラシークイズの回答（{r.testScore}/20）</p>
+                                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                                          {LITERACY_TEST.map((tq, ti) => {
+                                            const picked = r.testAnswers?.[ti];
+                                            const correct = picked === tq.correctIndex;
+                                            return (
+                                              <div key={ti} className="text-xs border-b border-shin-accent/60 pb-1">
+                                                <p className="text-shin-mid">
+                                                  <span className="inline-block bg-gray-100 text-shin-mid rounded px-1.5 py-0.5 mr-1 text-[10px]">{tq.chapter}</span>
+                                                  {tq.question}
+                                                </p>
+                                                <p className={correct ? "text-green-700 font-medium" : "text-red-600 font-medium"}>
+                                                  {correct ? "✓ " : "✗ "}
+                                                  回答: {picked !== undefined ? tq.options[picked] ?? "（不明）" : "（未回答）"}
+                                                  {!correct && <span className="text-shin-mid font-normal"> ／ 正解: {tq.options[tq.correctIndex]}</span>}
+                                                </p>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
                           );
                         })}</tbody>
                       </table>
